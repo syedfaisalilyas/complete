@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "251220245675",
+    "firebase_url": "https://unitools-f5be3-default-rtdb.firebaseio.com",
+    "project_id": "unitools-f5be3",
+    "storage_bucket": "unitools-f5be3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:251220245675:android:8c28c78e2009827bcacbee",
+        "android_client_info": {
+          "package_name": "com.example.shopkeeper"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDCf98zeWhAu--jWnL6q2puDIL1ZqepDDQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

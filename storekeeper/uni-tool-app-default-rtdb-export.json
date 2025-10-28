@@ -1,0 +1,108 @@
+{
+  "borrowProductDetails": {
+    "p1": {
+      "capacity": [
+        "32GB",
+        "64GB",
+        "128GB"
+      ],
+      "color": [
+        "https://i.postimg.cc/59hd41GJ/c1.png",
+        "https://i.postimg.cc/L8ScPD20/c2.png"
+      ],
+      "description": "With its stylish, compact design and generous capacity, the Cruzer Blade USB Flash Drive makes it easy to back up, transfer, and share your files.",
+      "imageUrl": "https://i.postimg.cc/NLqxWddh/shop1.png"
+    },
+    "p2": {
+      "description": "Upgrade your PC or laptop with a high-speed SSD that delivers lightning-fast boot times and smooth performance. Its durable, shock-resistant design ensures long-lasting reliability while handling heavy workloads with ease. Perfect for gaming, multitasking, and storing all your important files efficiently.",
+      "imageUrl": "https://i.postimg.cc/025Wqydr/Adobe-Stock-315675287-Preview.jpg"
+    },
+    "p3": {
+      "description": "Enjoy immersive sound quality with headphones designed for music, gaming, and calls. With deep bass, crystal-clear audio, and noise isolation, every detail comes alive. The lightweight, comfortable design makes them ideal for long listening sessions at home, work, or on the go.",
+      "imageUrl": "https://i.postimg.cc/q76DZDcL/blue-headphones-isolated-white-background.jpg"
+    },
+    "p4": {
+      "description": "A smooth ballpoint pen ideal for everyday writing, designed with a comfortable grip and long-lasting ink flow. Perfect for office, school, and personal use.",
+      "imageUrl": "https://i.postimg.cc/Vkf22HTf/pen.jpg"
+    }
+  },
+  "borrowProducts": {
+    "p1": {
+      "id": "p1",
+      "imageUrl": "https://i.postimg.cc/VvKmQYdW/item1.png",
+      "name": "Cruzer Blade USB Flash Drive",
+      "price": "1.29 OMR"
+    },
+    "p2": {
+      "id": "p2",
+      "imageUrl": "https://i.postimg.cc/CKCypF2n/item2.png",
+      "name": "SDD 5200 PRO 1.92TB",
+      "price": "14.70 OMR"
+    },
+    "p3": {
+      "id": "p3",
+      "imageUrl": "https://i.postimg.cc/SsVwjgky/item3.png",
+      "name": "RKSTN Bluetooth Headphones",
+      "price": "4.50 OMR"
+    },
+    "p4": {
+      "id": "p4",
+      "imageUrl": "https://i.postimg.cc/Vkf22HTf/pen.jpg",
+      "name": "pen",
+      "price": "2.50 OMR"
+    }
+  },
+  "productDetails": {
+    "p1": {
+      "capacity": [
+        "32GB",
+        "64GB",
+        "128GB"
+      ],
+      "color": [
+        "https://i.postimg.cc/59hd41GJ/c1.png",
+        "https://i.postimg.cc/L8ScPD20/c2.png"
+      ],
+      "description": "With its stylish, compact design and generous capacity, the Cruzer Blade USB Flash Drive makes it easy to back up, transfer, and share your files.",
+      "imageUrl": "https://i.postimg.cc/NLqxWddh/shop1.png"
+    },
+    "p2": {
+      "description": "Upgrade your PC or laptop with a high-speed SSD that delivers lightning-fast boot times and smooth performance. Its durable, shock-resistant design ensures long-lasting reliability while handling heavy workloads with ease. Perfect for gaming, multitasking, and storing all your important files efficiently.",
+      "imageUrl": "https://i.postimg.cc/025Wqydr/Adobe-Stock-315675287-Preview.jpg"
+    },
+    "p3": {
+      "description": "Enjoy immersive sound quality with headphones designed for music, gaming, and calls. With deep bass, crystal-clear audio, and noise isolation, every detail comes alive. The lightweight, comfortable design makes them ideal for long listening sessions at home, work, or on the go.",
+      "imageUrl": "https://i.postimg.cc/q76DZDcL/blue-headphones-isolated-white-background.jpg"
+    },
+    "p4": {
+      "description": "A smooth ballpoint pen ideal for everyday writing, designed with a comfortable grip and long-lasting ink flow. Perfect for office, school, and personal use.",
+      "imageUrl": "https://i.postimg.cc/Vkf22HTf/pen.jpg"
+    }
+  },
+  "products": {
+    "p1": {
+      "id": "p1",
+      "imageUrl": "https://i.postimg.cc/VvKmQYdW/item1.png",
+      "name": "Cruzer Blade USB Flash Drive",
+      "price": "2.289 OMR"
+    },
+    "p2": {
+      "id": "p2",
+      "imageUrl": "https://i.postimg.cc/CKCypF2n/item2.png",
+      "name": "SDD 5200 PRO 1.92TB",
+      "price": "28.170 OMR"
+    },
+    "p3": {
+      "id": "p3",
+      "imageUrl": "https://i.postimg.cc/SsVwjgky/item3.png",
+      "name": "RKSTN Bluetooth Headphones",
+      "price": "10.500 OMR"
+    },
+    "p4": {
+      "id": "p4",
+      "imageUrl": "https://i.postimg.cc/Vkf22HTf/pen.jpg",
+      "name": "pen",
+      "price": "5.00 OMR"
+    }
+  }
+}

@@ -1,0 +1,96 @@
+name: storekeeper
+description: "A new Flutter project."
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  flutter_screenutil: ^5.9.3
+  get: ^4.7.2
+  animations: ^2.0.11
+  page_transition: ^2.2.1
+  firebase_core: ^4.0.0
+  firebase_auth: ^6.0.1
+  intl: ^0.20.2
+  cloud_firestore: ^6.0.0
+  firebase_database: ^12.0.0
+  cached_network_image: ^3.4.1
+  flutter_stripe: ^12.0.2
+  cloud_functions: ^6.0.0
+  rxdart: ^0.28.0
+  http: ^1.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^5.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+  assets:
+    - assets/images/buy/buy1.png
+    - assets/images/buy/buy2.png
+    - assets/images/buy/buy3.png
+    - assets/images/buy/buy4.png
+    - assets/images/buy/buy5.png
+    - assets/images/buy/buy6.png
+    - assets/images/buy/buy7.png
+    - assets/images/buy/buy8.png
+    - assets/images/category/c1.png
+    - assets/images/category/c2.png
+    - assets/images/category/c3.png
+    - assets/images/category/c4.png
+    - assets/images/category/c5.png
+    - assets/images/category/c6.png
+    - assets/images/category/c7.png
+    - assets/images/confirmation/confirm.png
+    - assets/images/confirmation/confirm2.png
+    - assets/images/extra/e1.png
+    - assets/images/feedback/bad.png
+    - assets/images/feedback/decent.png
+    - assets/images/feedback/loveit.png
+    - assets/images/forgotpwd/forgotpwd1.png
+    - assets/images/home/borrow.png
+    - assets/images/home/buy.png
+    - assets/images/home/cart.png
+    - assets/images/home/home.png
+    - assets/images/home/logout.png
+    - assets/images/home/order.png
+    - assets/images/IT/item1.png
+    - assets/images/IT/item2.png
+    - assets/images/IT/item3.png
+    - assets/images/itemdetail/c1.png
+    - assets/images/itemdetail/c2.png
+    - assets/images/opening/opening.png
+    - assets/images/payment/payment1.png
+    - assets/images/profile/profile.png
+    - assets/images/profile/edit.png
+    - assets/images/shopnow/shop1.png
+    - assets/images/signin/forgotpwd.png
+    - assets/images/signin/signin.png
+    - assets/images/storekeeper/s1.png
+    - assets/images/order/order.png
+  uses-material-design: true
+  fonts:
+    - family: Co Headline.otf
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-SemiBold.ttf
