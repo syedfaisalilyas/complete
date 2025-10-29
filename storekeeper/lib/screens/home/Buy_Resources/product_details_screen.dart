@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -155,62 +157,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       const SizedBox(height: 20),
 
                       // Capacity (if applicable)
-                      const Text(
-                        "Capacity:",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.black),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: ["32GB", "64GB", "128GB"].map((cap) {
-                          final isSelected = selectedCapacity == cap;
-                          return GestureDetector(
-                            onTap: () => setState(() => selectedCapacity = cap),
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 10),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? const Color(0xFFDDE7FF)
-                                    : Colors.white,
-                                border: Border.all(
-                                    color: isSelected
-                                        ? Colors.blueAccent
-                                        : Colors.grey.shade400),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                cap,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Colors.blueAccent
-                                      : Colors.black,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Color Selection
-                      const Text(
-                        "Color:",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.black),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _colorOption('assets/images/order/order.png', 'Red'),
-                          const SizedBox(width: 10),
-                          _colorOption('assets/images/order/order.png', 'Blue'),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
 
                       // Price
                       Text(
@@ -253,14 +199,58 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       const SizedBox(height: 30),
 
                       // Add to Cart Button
+                      // Add to Cart Button
                       SizedBox(
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user == null) {
+                              Get.snackbar(
+                                "Not Logged In",
+                                "Please sign in first to add items to cart.",
+                                backgroundColor: Colors.red,
+                                colorText: Colors.white,
+                              );
+                              return;
+                            }
+
+                            final userId = user.uid;
+                            final cartRef = FirebaseFirestore.instance
+                                .collection('cart')
+                                .doc(userId)
+                                .collection('items')
+                                .doc(data['id'] ?? name); // product id or fallback
+
+                            final doc = await cartRef.get();
+
+                            if (doc.exists) {
+                              // If already in cart, just increase quantity
+                              final currentQty = doc['quantity'] ?? 1;
+                              await cartRef.update({
+                                'quantity': currentQty + quantity,
+                                'updatedAt': FieldValue.serverTimestamp(),
+                              });
+                            } else {
+                              // New item
+                              await cartRef.set({
+                                'name': name,
+                                'price': price,
+                                'imageUrl': imageUrl,
+                                'quantity': quantity,
+                                'category': category,
+                                'subcategory': subcategory,
+                                'selectedCapacity': selectedCapacity,
+                                'selectedColor': selectedColor,
+                                'addedAt': FieldValue.serverTimestamp(),
+                              });
+                            }
+
+                            // ✅ Success Feedback
                             Get.snackbar(
-                              "Added to cart",
-                              "$name added successfully",
+                              "Added to Cart",
+                              "$name added successfully!",
                               snackPosition: SnackPosition.BOTTOM,
                               backgroundColor: Colors.green,
                               colorText: Colors.white,
@@ -282,6 +272,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           ),
                         ),
                       ),
+
                     ],
                   ),
                 ),

@@ -42,14 +42,61 @@ class _UpdateResourcesAndToolsState
     }
   }
 
-  /// Show Update Modal
+  /// ✅ Show confirmation before deleting
+  Future<void> _confirmDelete(String docId, String name) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Delete Product"),
+        content: Text(
+          "Are you sure you want to delete \"$name\"?",
+          style: const TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      _deleteProduct(docId);
+    }
+  }
+
+  /// ✅ Delete product after confirmation
+  Future<void> _deleteProduct(String docId) async {
+    try {
+      await _firestore.collection("products").doc(docId).delete();
+      _showSuccessDialog("Product deleted successfully!");
+      _fetchProducts();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error deleting product: $e")),
+      );
+    }
+  }
+
+  /// Update Modal
   void _showUpdateModal(String docId, Map<String, dynamic> item) {
     final nameCtrl = TextEditingController(text: item["name"]);
     final descCtrl = TextEditingController(text: item["description"]);
-    final priceCtrl =
-    TextEditingController(text: item["price"]?.toString() ?? "");
-    final stockCtrl =
-    TextEditingController(text: item["stock"]?.toString() ?? "");
+    final priceCtrl = TextEditingController(text: item["price"]?.toString() ?? "");
+    final stockCtrl = TextEditingController(text: item["stock"]?.toString() ?? "");
     final imageCtrl = TextEditingController(text: item["image"] ?? "");
 
     String selectedCategory = item["category"] ?? categories.first;
@@ -81,17 +128,19 @@ class _UpdateResourcesAndToolsState
                   children: [
                     const Text(
                       "Update Resource",
-                      style:
-                      TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: TSizes.md),
                     _buildTextField("Product Name", nameCtrl),
                     const SizedBox(height: TSizes.md),
                     _buildTextField("Description", descCtrl, maxLines: 3),
                     const SizedBox(height: TSizes.md),
-                    _buildDropdown("Category", categories, selectedCategory,
-                            (val) =>
-                            setModalState(() => selectedCategory = val!)),
+                    _buildDropdown(
+                      "Category",
+                      categories,
+                      selectedCategory,
+                          (val) => setModalState(() => selectedCategory = val!),
+                    ),
                     const SizedBox(height: TSizes.md),
                     _buildTextField("Price", priceCtrl,
                         keyboardType: TextInputType.number),
@@ -99,9 +148,12 @@ class _UpdateResourcesAndToolsState
                     _buildTextField("Stock Quantity", stockCtrl,
                         keyboardType: TextInputType.number),
                     const SizedBox(height: TSizes.md),
-                    _buildDropdown("Condition", conditions, selectedCondition,
-                            (val) =>
-                            setModalState(() => selectedCondition = val!)),
+                    _buildDropdown(
+                      "Condition",
+                      conditions,
+                      selectedCondition,
+                          (val) => setModalState(() => selectedCondition = val!),
+                    ),
                     const SizedBox(height: TSizes.md),
                     _buildTextField("Image URL", imageCtrl),
                     const SizedBox(height: TSizes.lg),
@@ -126,7 +178,8 @@ class _UpdateResourcesAndToolsState
                                 "name": nameCtrl.text,
                                 "description": descCtrl.text,
                                 "category": selectedCategory,
-                                "price": double.tryParse(priceCtrl.text) ?? 0.0,
+                                "price":
+                                double.tryParse(priceCtrl.text) ?? 0.0,
                                 "stock": int.tryParse(stockCtrl.text) ?? 0,
                                 "condition": selectedCondition,
                                 "image": imageCtrl.text,
@@ -138,8 +191,7 @@ class _UpdateResourcesAndToolsState
                                     .doc(docId)
                                     .update(updatedData);
                                 Navigator.pop(context);
-                                _showSuccessDialog(
-                                    "Product updated successfully!");
+                                _showSuccessDialog("Product updated successfully!");
                                 _fetchProducts();
                               } catch (e) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -159,19 +211,6 @@ class _UpdateResourcesAndToolsState
         );
       },
     );
-  }
-
-  /// Delete product
-  Future<void> _deleteProduct(String docId) async {
-    try {
-      await _firestore.collection("products").doc(docId).delete();
-      _showSuccessDialog("Product deleted successfully!");
-      _fetchProducts();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error deleting product: $e")),
-      );
-    }
   }
 
   void _showSuccessDialog(String msg) {
@@ -308,12 +347,14 @@ class _UpdateResourcesAndToolsState
                           borderRadius: BorderRadius.circular(16),
                         ),
                         elevation: 4,
-                        margin: const EdgeInsets.symmetric(vertical: 10),
+                        margin:
+                        const EdgeInsets.symmetric(vertical: 10),
                         child: Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: ListTile(
                             contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
                             leading: _buildAvatar(
                                 item["name"] ?? "", item["image"]),
                             title: Text(item["name"] ?? "",
@@ -321,7 +362,8 @@ class _UpdateResourcesAndToolsState
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16)),
                             subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 4.0),
+                              padding:
+                              const EdgeInsets.only(top: 4.0),
                               child: Text(
                                 "Price: ${item["price"] ?? 0} | Stock: ${item["stock"] ?? 0} | ${item["condition"] ?? ""}",
                                 style: const TextStyle(
@@ -333,16 +375,19 @@ class _UpdateResourcesAndToolsState
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.deepPurple),
-                                  onPressed: () => _showUpdateModal(doc.id, item),
+                                  icon: const Icon(Icons.edit,
+                                      color: Colors.deepPurple),
+                                  onPressed: () => _showUpdateModal(
+                                      doc.id, item),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                  onPressed: () => _deleteProduct(doc.id),
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.redAccent),
+                                  onPressed: () => _confirmDelete(
+                                      doc.id, item["name"] ?? ""),
                                 ),
                               ],
                             ),
-
                           ),
                         ),
                       );
