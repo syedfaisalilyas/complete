@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -17,6 +18,7 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   FlutterNativeSplash.remove();
+  dumpFirestoreStructure();
   runApp(const MyApp());
 }
 
@@ -50,3 +52,34 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
+
+Future<void> dumpCollection(String name) async {
+  final snap = await FirebaseFirestore.instance.collection(name).limit(5).get();
+  print("📂 Collection: $name  (${snap.docs.length} docs)");
+  for (var doc in snap.docs) {
+    print("  📄 Doc ID: ${doc.id}");
+    (doc.data() as Map<String, dynamic>).forEach((key, value) {
+      print("     🔑 $key : ${value.runtimeType} => $value");
+    });
+  }
+  print("\n");
+}
+Future<void> dumpFirestoreStructure() async {
+  final collections = [
+    "borrow_requests",
+    "cart",
+    "orders",
+    "products",
+    "users",
+  ];
+
+  for (final col in collections) {
+    try {
+      await dumpCollection(col);
+    } catch (e) {
+      print("⚠️ Failed to fetch $col: $e");
+    }
+  }
+}
+

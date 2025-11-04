@@ -1,139 +1,182 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:unitools/utils/constants/sizes.dart';
+import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 
-class ViewSalesReportScreen extends StatefulWidget {
-  const ViewSalesReportScreen({super.key});
+class MasterSalesReportScreen extends StatefulWidget {
+  const MasterSalesReportScreen({super.key});
 
   @override
-  State<ViewSalesReportScreen> createState() => _ViewSalesReportScreenState();
+  State<MasterSalesReportScreen> createState() =>
+      _MasterSalesReportScreenState();
 }
 
-class _ViewSalesReportScreenState extends State<ViewSalesReportScreen> {
-  Widget _buildAvatar(String name, int index) {
-    String initials = name.isNotEmpty
-        ? (name.length > 1
-        ? name.substring(0, 2).toUpperCase()
-        : name[0].toUpperCase())
-        : "NA";
+class _MasterSalesReportScreenState extends State<MasterSalesReportScreen> {
+  bool _loading = true;
 
-    List<List<Color>> gradients = [
-      [const Color(0xFF667EEA), const Color(0xFF764BA2)],
-      [const Color(0xFFFF6B6B), const Color(0xFFEE5A24)],
-      [const Color(0xFF4ECDC4), const Color(0xFF44A08D)],
-      [const Color(0xFFFFBE0B), const Color(0xFFFB8500)],
-      [const Color(0xFF6C5CE7), const Color(0xFFDA085)],
+  List<Map<String, dynamic>> borrowRequests = [];
+  List<Map<String, dynamic>> orders = [];
+  List<Map<String, dynamic>> products = [];
+  List<Map<String, dynamic>> users = [];
+
+  double totalOrderRevenue = 0;
+  double totalBorrowDeposit = 0;
+  double totalRevenue = 0;
+
+  Map<String, double> dailyRevenue = {};
+  int totalApprovedBorrows = 0;
+  int totalRejectedBorrows = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAllData();
+  }
+
+  Future<void> _fetchAllData() async {
+    try {
+      final borrowSnap =
+      await FirebaseFirestore.instance.collection('borrow_requests').get();
+      final orderSnap =
+      await FirebaseFirestore.instance.collection('orders').get();
+      final productSnap =
+      await FirebaseFirestore.instance.collection('products').get();
+      final userSnap =
+      await FirebaseFirestore.instance.collection('users').get();
+
+      borrowRequests =
+          borrowSnap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
+      orders =
+          orderSnap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
+      products =
+          productSnap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
+      users =
+          userSnap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
+
+      // ======= CALCULATE TOTALS =======
+      totalOrderRevenue = orders.fold(
+          0.0, (sum, e) => sum + (e['totalAmount'] ?? 0).toDouble());
+
+      totalBorrowDeposit = borrowRequests.fold(
+          0.0, (sum, e) => sum + (e['deposit'] ?? 0).toDouble());
+
+      totalRevenue = totalOrderRevenue + totalBorrowDeposit;
+
+      totalApprovedBorrows = borrowRequests
+          .where((e) => (e['status'] ?? '') == 'Approved')
+          .length;
+      totalRejectedBorrows = borrowRequests
+          .where((e) => (e['status'] ?? '') == 'Rejected')
+          .length;
+
+      // ======= CHART DATA =======
+      for (var order in orders) {
+        final ts = order['timestamp'];
+        if (ts is Timestamp) {
+          final date = ts.toDate();
+          final key = DateFormat('MMM dd').format(date);
+          final val = (order['totalAmount'] ?? 0).toDouble();
+          dailyRevenue[key] = (dailyRevenue[key] ?? 0) + val;
+        }
+      }
+
+      for (var borrow in borrowRequests) {
+        final ts = borrow['createdAt'];
+        if (ts is Timestamp) {
+          final date = ts.toDate();
+          final key = DateFormat('MMM dd').format(date);
+          final val = (borrow['deposit'] ?? 0).toDouble();
+          dailyRevenue[key] = (dailyRevenue[key] ?? 0) + val;
+        }
+      }
+
+      setState(() => _loading = false);
+    } catch (e) {
+      print('❌ Error fetching data: $e');
+    }
+  }
+
+  // Summary Box
+  Widget _summaryCard(
+      String title, String value, Color color, IconData icon) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 5),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4))
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 30),
+            const SizedBox(height: 8),
+            Text(title,
+                style: const TextStyle(
+                    color: Colors.black54,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500)),
+            const SizedBox(height: 5),
+            Text(value,
+                style: TextStyle(
+                    color: color, fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Line Chart Widget
+  Widget _buildChart() {
+    final keys = dailyRevenue.keys.toList();
+    final spots = [
+      for (int i = 0; i < keys.length; i++)
+        FlSpot(i.toDouble(), dailyRevenue[keys[i]] ?? 0)
     ];
 
-    List<Color> selectedGradient = gradients[index % gradients.length];
-
-    return Container(
-      width: TSizes.iconLg,
-      height: TSizes.iconLg,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: selectedGradient),
-        borderRadius: BorderRadius.circular(TSizes.borderRadiusLg),
-        boxShadow: [
-          BoxShadow(
-            color: selectedGradient[1].withOpacity(0.4),
-            blurRadius: TSizes.sm,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          initials,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: TSizes.fontSizeMd,
-          ),
+    return LineChart(
+      LineChartData(
+        gridData: const FlGridData(show: false),
+        titlesData: FlTitlesData(
+          bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                  showTitles: true,
+                  getTitlesWidget: (value, _) {
+                    if (value.toInt() >= keys.length) return const SizedBox();
+                    return Text(keys[value.toInt()],
+                        style: const TextStyle(
+                            fontSize: 10, color: Colors.black54));
+                  })),
+          leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                  showTitles: true,
+                  getTitlesWidget: (val, _) => Text(
+                    val.toInt().toString(),
+                    style: const TextStyle(
+                        fontSize: 10, color: Colors.black54),
+                  ))),
+          rightTitles:
+          const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+          const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
-      ),
-    );
-  }
-
-  Widget _buildQuantityBadge(int quantity) {
-    return Container(
-      padding:
-      EdgeInsets.symmetric(horizontal: TSizes.sm, vertical: TSizes.xs),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-        ),
-        borderRadius: BorderRadius.circular(TSizes.borderRadiusSm),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.shopping_bag, size: 14, color: Colors.white),
-          SizedBox(width: TSizes.xs),
-          Text(
-            "x$quantity",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              fontSize: TSizes.fontSizeSm,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPriceBadge(num totalPrice) {
-    return Container(
-      padding:
-      EdgeInsets.symmetric(horizontal: TSizes.sm, vertical: TSizes.xs),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF00B894), Color(0xFF00A085)],
-        ),
-        borderRadius: BorderRadius.circular(TSizes.borderRadiusSm),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            "Dir. ${totalPrice.toStringAsFixed(2)}",
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: TSizes.fontSizeMd,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCustomAppBar() {
-    return Container(
-      padding: const EdgeInsets.all(TSizes.defaultSpace),
-      child: Row(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(TSizes.borderRadiusMd),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-          SizedBox(width: TSizes.md),
-          const Expanded(
-            child: Text(
-              "View Sales Reports",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: const Color(0xFF6A7FD0),
+            barWidth: 4,
+            belowBarData: BarAreaData(
+                show: true, color: const Color(0xFF6A7FD0).withOpacity(0.2)),
+            dotData: const FlDotData(show: false),
+          )
         ],
       ),
     );
@@ -142,241 +185,156 @@ class _ViewSalesReportScreenState extends State<ViewSalesReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFFA855F7)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+      backgroundColor: const Color(0xFF6A7FD0),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        title: const Text(
+          "Full Business Report",
+          style: TextStyle(
+              fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildCustomAppBar(),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          : SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
 
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection("payment")
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                          child: CircularProgressIndicator(color: Colors.white));
-                    }
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return const Center(
-                          child: Text("No sales found",
-                              style: TextStyle(color: Colors.white)));
-                    }
-
-                    final payments = snapshot.data!.docs;
-
-                    double totalRevenue = payments.fold(0.0, (sum, doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      return sum + (data["totalPrice"] ?? 0).toDouble();
-                    });
-
-                    return Container(
-                      margin: EdgeInsets.only(top: TSizes.lg),
-                      padding: EdgeInsets.all(TSizes.defaultSpace),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(30),
-                          topRight: Radius.circular(30),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(TSizes.md),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFFFFFF), Color(0xFFF1F5F9)],
-                              ),
-                              borderRadius: BorderRadius.circular(TSizes.md),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                Column(
-                                  children: [
-                                    const Icon(Icons.analytics,
-                                        color: Colors.deepPurple, size: 28),
-                                    SizedBox(height: TSizes.xs),
-                                    const Text("Total Sales",
-                                        style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black54)),
-                                    Text(
-                                      "${payments.length}",
-                                      style: const TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.deepPurple),
-                                    ),
-                                  ],
-                                ),
-                                Column(
-                                  children: [
-                                    const Icon(Icons.monetization_on,
-                                        color: Colors.green, size: 28),
-                                    SizedBox(height: TSizes.xs),
-                                    const Text("Revenue",
-                                        style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black54)),
-                                    Text(
-                                      "${totalRevenue.toStringAsFixed(2)}",
-                                      style: const TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.green),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          SizedBox(height: TSizes.lg),
-
-                          Expanded(
-                            child: ListView.builder(
-                              itemCount: payments.length,
-                              itemBuilder: (context, index) {
-                                final data = payments[index].data()
-                                as Map<String, dynamic>;
-
-                                final items = List<Map<String, dynamic>>.from(
-                                    data["items"] ?? []);
-                                final firstItem =
-                                items.isNotEmpty ? items[0] : null;
-
-                                final buyer = data["orderId"] ?? "Unknown";
-                                final date = data["orderDate"] != null
-                                    ? (data["orderDate"] as Timestamp)
-                                    .toDate()
-                                    .toString()
-                                    : "N/A";
-                                final totalPrice = data["totalPrice"] ?? 0;
-
-                                return Container(
-                                  margin: EdgeInsets.only(bottom: TSizes.md),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius:
-                                    BorderRadius.circular(TSizes.md),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: TSizes.sm,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Padding(
-                                    padding: EdgeInsets.all(TSizes.md),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                      children: [
-                                        _buildAvatar(
-                                            firstItem?["name"] ?? "NA", index),
-                                        SizedBox(width: TSizes.md),
-
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                firstItem?["name"] ??
-                                                    "Unknown Product",
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: TSizes.fontSizeMd,
-                                                ),
-                                                overflow:
-                                                TextOverflow.ellipsis,
-                                                maxLines: 1,
-                                              ),
-                                              SizedBox(height: TSizes.xs),
-
-                                              Row(
-                                                children: [
-                                                  const Icon(Icons.person,
-                                                      size: 14,
-                                                      color: Colors.grey),
-                                                  SizedBox(width: TSizes.xs),
-                                                  Expanded(
-                                                    child: Text(
-                                                      buyer,
-                                                      style: TextStyle(
-                                                        fontSize:
-                                                        TSizes.fontSizeSm,
-                                                        color: Colors.black54,
-                                                      ),
-                                                      overflow: TextOverflow
-                                                          .ellipsis,
-                                                      maxLines: 1,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              SizedBox(height: TSizes.xs),
-
-                                              Row(
-                                                children: [
-                                                  const Icon(
-                                                      Icons.calendar_today,
-                                                      size: 14,
-                                                      color: Colors.grey),
-                                                  SizedBox(width: TSizes.xs),
-                                                  Expanded(
-                                                    child: Text(
-                                                      date,
-                                                      style: TextStyle(
-                                                        fontSize:
-                                                        TSizes.fontSizeSm,
-                                                        color: Colors.black54,
-                                                      ),
-                                                      overflow: TextOverflow
-                                                          .ellipsis,
-                                                      maxLines: 1,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-
-                                        Column(
-                                          children: [
-                                            _buildQuantityBadge(
-                                                firstItem?["quantity"] ?? 0),
-                                            SizedBox(height: TSizes.xs),
-                                            _buildPriceBadge(totalPrice),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+            // Summary Row 1
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                children: [
+                  _summaryCard("Total Revenue",
+                      "${totalRevenue.toStringAsFixed(2)} OMR",
+                      Colors.teal,
+                      Icons.attach_money_rounded),
+                  _summaryCard("Orders", orders.length.toString(),
+                      Colors.indigo, Icons.shopping_cart),
+                  _summaryCard("Borrows", borrowRequests.length.toString(),
+                      Colors.orange, Icons.handshake),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 10),
+
+            // Summary Row 2
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                children: [
+                  _summaryCard("Approved Borrows",
+                      totalApprovedBorrows.toString(), Colors.green,
+                      Icons.check_circle),
+                  _summaryCard("Rejected Borrows",
+                      totalRejectedBorrows.toString(), Colors.red,
+                      Icons.cancel),
+                  _summaryCard("Users", users.length.toString(),
+                      Colors.purple, Icons.people_alt_rounded),
+                ],
+              ),
+            ),
+            const SizedBox(height: 25),
+
+            // Chart
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20)),
+              height: 250,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Revenue Overview",
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 10),
+                  Expanded(child: _buildChart()),
+                ],
+              ),
+            ),
+            const SizedBox(height: 25),
+
+            // Top Products
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Products Summary",
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Divider(),
+                  ...products.take(5).map((p) {
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage:
+                        NetworkImage(p['image'] ?? ''),
+                        backgroundColor: Colors.grey.shade200,
+                      ),
+                      title: Text(p['name'] ?? 'Unknown'),
+                      subtitle: Text(
+                          "${p['category']} • ${p['price']} OMR • Stock: ${p['stock']}"),
+                      trailing: Text(p['approvalStatus'] ?? '',
+                          style: TextStyle(
+                              color: (p['approvalStatus'] == 'Pending')
+                                  ? Colors.orange
+                                  : Colors.green)),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 25),
+
+            // Borrow Records
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Recent Borrow Requests",
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Divider(),
+                  ...borrowRequests.take(5).map((b) {
+                    DateTime? date;
+                    if (b['createdAt'] is Timestamp) {
+                      date = (b['createdAt'] as Timestamp).toDate();
+                    }
+                    return ListTile(
+                      leading: CircleAvatar(
+                          backgroundColor: Colors.orange,
+                          child: const Icon(Icons.handshake,
+                              color: Colors.white)),
+                      title: Text(b['itemName'] ?? 'Unknown Item'),
+                      subtitle: Text(
+                          "${b['status']} • ${b['userEmail']} • ${date != null ? DateFormat('MMM dd').format(date) : ''}"),
+                      trailing: Text(
+                          "${b['deposit'] ?? 0} OMR",
+                          style: const TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold)),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+          ],
         ),
       ),
     );

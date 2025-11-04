@@ -176,6 +176,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       const SizedBox(height: 20),
 
                       // Quantity Selector
+                      // Quantity Selector
                       Row(
                         mainAxisAlignment: MainAxisAlignment.start,
                         children: [
@@ -192,10 +193,21 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             ),
                           ),
                           _qtyButton(Icons.add, () {
-                            setState(() => quantity++);
+                            int stockQty = int.tryParse(stock) ?? 0;
+                            if (quantity < stockQty) {
+                              setState(() => quantity++);
+                            } else {
+                              Get.snackbar(
+                                "Stock Limit",
+                                "Only $stockQty items available in stock.",
+                                backgroundColor: Colors.red,
+                                colorText: Colors.white,
+                              );
+                            }
                           }),
                         ],
                       ),
+
                       const SizedBox(height: 30),
 
                       // Add to Cart Button
@@ -217,23 +229,55 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             }
 
                             final userId = user.uid;
+                            final stockQty = int.tryParse(stock) ?? 0;
+
+                            if (stockQty <= 0) {
+                              Get.snackbar(
+                                "Out of Stock",
+                                "This item is currently unavailable.",
+                                backgroundColor: Colors.red,
+                                colorText: Colors.white,
+                              );
+                              return;
+                            }
+
+                            if (quantity > stockQty) {
+                              Get.snackbar(
+                                "Stock Limit",
+                                "Only $stockQty items available in stock.",
+                                backgroundColor: Colors.red,
+                                colorText: Colors.white,
+                              );
+                              return;
+                            }
+
                             final cartRef = FirebaseFirestore.instance
                                 .collection('cart')
                                 .doc(userId)
                                 .collection('items')
-                                .doc(data['id'] ?? name); // product id or fallback
+                                .doc(data['id'] ?? name);
 
                             final doc = await cartRef.get();
 
                             if (doc.exists) {
-                              // If already in cart, just increase quantity
                               final currentQty = doc['quantity'] ?? 1;
+                              final newQty = currentQty + quantity;
+
+                              if (newQty > stockQty) {
+                                Get.snackbar(
+                                  "Stock Limit",
+                                  "You can only have $stockQty of this item in your cart.",
+                                  backgroundColor: Colors.red,
+                                  colorText: Colors.white,
+                                );
+                                return;
+                              }
+
                               await cartRef.update({
-                                'quantity': currentQty + quantity,
+                                'quantity': newQty,
                                 'updatedAt': FieldValue.serverTimestamp(),
                               });
                             } else {
-                              // New item
                               await cartRef.set({
                                 'name': name,
                                 'price': price,
@@ -247,7 +291,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               });
                             }
 
-                            // ✅ Success Feedback
                             Get.snackbar(
                               "Added to Cart",
                               "$name added successfully!",

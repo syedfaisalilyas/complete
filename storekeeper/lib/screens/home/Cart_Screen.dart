@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../payment/PaymentScreen.dart';
+
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
 
@@ -207,6 +209,7 @@ class _CartScreenState extends State<CartScreen> {
                               "Proceeding to payment (dummy)...",
                               backgroundColor: Colors.green,
                               colorText: Colors.white);
+                          Get.to(() => PaymentScreen(totalAmount: total));
                         },
                         child: const Text(
                           "Checkout",

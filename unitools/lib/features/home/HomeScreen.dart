@@ -11,6 +11,8 @@ import 'package:unitools/features/crudScreens/viewUserOrderReport.dart';
 import 'package:unitools/utils/constants/image_strings.dart';
 import 'package:unitools/utils/constants/sizes.dart';
 
+import '../crudScreens/AdminBorrowApprovalScreen.dart';
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -28,7 +30,8 @@ class HomeScreen extends StatelessWidget {
     {
       "image": TImages.gridLayoutIcon,
       "text": "Update resource \n& tools",
-      "onTap": () => Get.to(() => UpdateResourcesAndToolsScreen())
+      "onTap": () => Get.to(() =>
+          UpdateResourcesAndToolsScreen())
     },
     {
       "image": TImages.gridLayoutIcon,
@@ -37,8 +40,13 @@ class HomeScreen extends StatelessWidget {
     },
     {
       "image": TImages.gridLayoutIcon,
+      "text": "Manage Borrow resource \n& tools",
+      "onTap": () => Get.to(() => AdminBorrowApprovalScreen())
+    },
+    {
+      "image": TImages.gridLayoutIcon,
       "text": "View Sales report",
-      "onTap": () => Get.to(() => ViewSalesReportScreen())
+      "onTap": () => Get.to(() => MasterSalesReportScreen())
     },
     {
       "image": TImages.gridLayoutIcon,

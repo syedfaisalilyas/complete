@@ -79,9 +79,10 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
         "name": nameController.text.trim(),
         "age": int.tryParse(ageController.text.trim()) ?? 0,
         "email": emailController.text.trim(),
-        "role": "shopkeeper",
+        "role": "storekeeper", // ✅ this must stay
         "createdAt": DateTime.now().toIso8601String(),
       });
+
 
       _showSuccessModal();
     } on FirebaseAuthException catch (e) {
@@ -245,27 +246,44 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
                               style: TextStyle(
                                   fontSize: 20, fontWeight: FontWeight.bold)),
                           SizedBox(height: h * 0.008),
+                          // Inside your Form widget
                           TextFormField(
                             controller: nameController,
-                            validator: (v) =>
-                            v == null || v.isEmpty ? "Enter name" : null,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return "Enter name";
+                              if (v.trim().length < 3) return "Name must be at least 3 characters";
+                              final nameRegex = RegExp(r"^[a-zA-Z\s]+$");
+                              if (!nameRegex.hasMatch(v.trim())) return "Name can only contain letters";
+                              return null;
+                            },
                             decoration: TInputDecoration.inputDecoration(
-                                context, "Enter name", Iconsax.user),
+                              context,
+                              "Enter name",
+                              Iconsax.user,
+                            ),
                           ),
                           SizedBox(height: h * 0.02),
 
                           const Text("Age",
-                              style: TextStyle(
-                                  fontSize: 20, fontWeight: FontWeight.bold)),
+                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                           SizedBox(height: h * 0.008),
                           TextFormField(
                             controller: ageController,
                             keyboardType: TextInputType.number,
-                            validator: (v) =>
-                            v == null || v.isEmpty ? "Enter age" : null,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) return "Enter age";
+                              final age = int.tryParse(v);
+                              if (age == null) return "Age must be a number";
+                              if (age < 15 || age > 80) return "Age must be between 15 and 80";
+                              return null;
+                            },
                             decoration: TInputDecoration.inputDecoration(
-                                context, "Enter age", Iconsax.calendar),
+                              context,
+                              "Enter age",
+                              Iconsax.calendar,
+                            ),
                           ),
+
                           SizedBox(height: h * 0.02),
 
                           const Text("Email",
