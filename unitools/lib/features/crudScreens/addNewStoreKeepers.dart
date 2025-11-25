@@ -19,7 +19,7 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController nameController = TextEditingController();
-  final TextEditingController ageController = TextEditingController();
+  final TextEditingController dobController = TextEditingController(); // UPDATED
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
@@ -35,7 +35,7 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
   @override
   void dispose() {
     nameController.dispose();
-    ageController.dispose();
+    dobController.dispose();
     emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
@@ -49,6 +49,36 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
   void toggleConfirmVisibility() {
     setState(() => isConfirmHidden = !isConfirmHidden);
   }
+
+  /// ------------------------ DOB PICKER ------------------------
+  Future<void> _pickDOB() async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2000),
+      firstDate: DateTime(1950),
+      lastDate: DateTime(2010),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF6366F1),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        dobController.text =
+        "${picked.day}/${picked.month}/${picked.year}"; // << FIX
+      });
+    }
+  }
+
 
   Future<void> _createStorekeeper() async {
     if (!_formKey.currentState!.validate()) return;
@@ -67,44 +97,41 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
     setState(() => isLoading = true);
 
     try {
-      // ✅ Create user in Firebase Auth
+      // 🔥 Create Auth Account
       final userCredential = await _auth.createUserWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
 
-      // ✅ Save user data in Firestore
+      // 🔥 Save to Firestore
       await _firestore.collection("users").doc(userCredential.user!.uid).set({
         "uid": userCredential.user!.uid,
         "name": nameController.text.trim(),
-        "age": int.tryParse(ageController.text.trim()) ?? 0,
+        "dob": dobController.text.trim(), // UPDATED
         "email": emailController.text.trim(),
-        "role": "storekeeper", // ✅ this must stay
+        "role": "storekeeper",
         "createdAt": DateTime.now().toIso8601String(),
       });
-
 
       _showSuccessModal();
     } on FirebaseAuthException catch (e) {
       String message = "An unknown error occurred.";
       if (e.code == 'email-already-in-use') {
-        message = "This email is already in use by another account.";
+        message = "This email is already in use.";
       } else if (e.code == 'weak-password') {
-        message = "The password provided is too weak.";
+        message = "Password is too weak.";
       } else if (e.code == 'invalid-email') {
-        message = "The email address is not valid.";
+        message = "Invalid email address.";
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.redAccent,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
       );
     } finally {
       setState(() => isLoading = false);
     }
   }
 
+  /// ------------------------ SUCCESS POPUP ------------------------
   void _showSuccessModal() {
     showModalBottomSheet(
       context: context,
@@ -136,7 +163,7 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  "The new storekeeper account has been created and saved in Firestore.",
+                  "The new storekeeper account has been created and saved.",
                   style: TextStyle(fontSize: 14, color: Colors.grey),
                   textAlign: TextAlign.center,
                 ),
@@ -170,6 +197,7 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
     );
   }
 
+  /// ------------------------ UI ------------------------
   @override
   Widget build(BuildContext context) {
     final h = MediaQuery.of(context).size.height;
@@ -242,18 +270,20 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // NAME
                           const Text("Name",
                               style: TextStyle(
                                   fontSize: 20, fontWeight: FontWeight.bold)),
                           SizedBox(height: h * 0.008),
-                          // Inside your Form widget
                           TextFormField(
                             controller: nameController,
                             validator: (v) {
-                              if (v == null || v.trim().isEmpty) return "Enter name";
-                              if (v.trim().length < 3) return "Name must be at least 3 characters";
-                              final nameRegex = RegExp(r"^[a-zA-Z\s]+$");
-                              if (!nameRegex.hasMatch(v.trim())) return "Name can only contain letters";
+                              if (v == null || v.trim().isEmpty) {
+                                return "Enter name";
+                              }
+                              if (v.trim().length < 3) {
+                                return "Name must be at least 3 characters";
+                              }
                               return null;
                             },
                             decoration: TInputDecoration.inputDecoration(
@@ -264,28 +294,26 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
                           ),
                           SizedBox(height: h * 0.02),
 
-                          const Text("Age",
-                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                          // DOB FIELD (UPDATED)
+                          const Text("Date of Birth",
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold)),
                           SizedBox(height: h * 0.008),
                           TextFormField(
-                            controller: ageController,
-                            keyboardType: TextInputType.number,
-                            validator: (v) {
-                              if (v == null || v.isEmpty) return "Enter age";
-                              final age = int.tryParse(v);
-                              if (age == null) return "Age must be a number";
-                              if (age < 15 || age > 80) return "Age must be between 15 and 80";
-                              return null;
-                            },
+                            controller: dobController,
+                            readOnly: true,
+                            onTap: _pickDOB,
+                            validator: (v) =>
+                            v == null || v.isEmpty ? "Select DOB" : null,
                             decoration: TInputDecoration.inputDecoration(
                               context,
-                              "Enter age",
+                              "Select date of birth",
                               Iconsax.calendar,
                             ),
                           ),
-
                           SizedBox(height: h * 0.02),
 
+                          // EMAIL
                           const Text("Email",
                               style: TextStyle(
                                   fontSize: 20, fontWeight: FontWeight.bold)),
@@ -299,6 +327,7 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
                           ),
                           SizedBox(height: h * 0.02),
 
+                          // PASSWORD
                           const Text("Password",
                               style: TextStyle(
                                   fontSize: 20, fontWeight: FontWeight.bold)),
@@ -308,8 +337,10 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
                             validator: TValidator.validatePassword,
                             obscureText: isPasswordHidden,
                             decoration: TInputDecoration.inputDecoration(
-                                context, TTexts.password, Iconsax.password_check)
-                                .copyWith(
+                              context,
+                              TTexts.password,
+                              Iconsax.password_check,
+                            ).copyWith(
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   isPasswordHidden
@@ -323,6 +354,7 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
                           ),
                           SizedBox(height: h * 0.02),
 
+                          // CONFIRM PASSWORD
                           const Text("Confirm Password",
                               style: TextStyle(
                                   fontSize: 20, fontWeight: FontWeight.bold)),
@@ -332,21 +364,23 @@ class _AddNewStoreKeepersScreenState extends State<AddNewStoreKeepersScreen> {
                             obscureText: isConfirmHidden,
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return "Please confirm your password";
+                                return "Confirm password";
                               }
                               if (value != passwordController.text) {
                                 return "Passwords do not match";
                               }
-                              return null; // ✅ must return null when valid
+                              return null;
                             },
                             decoration: TInputDecoration.inputDecoration(
                               context,
-                              "Confirm Password",
+                              "Confirm password",
                               Iconsax.lock,
                             ).copyWith(
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  isConfirmHidden ? Iconsax.eye_slash : Iconsax.eye,
+                                  isConfirmHidden
+                                      ? Iconsax.eye_slash
+                                      : Iconsax.eye,
                                   color: Colors.grey,
                                 ),
                                 onPressed: toggleConfirmVisibility,

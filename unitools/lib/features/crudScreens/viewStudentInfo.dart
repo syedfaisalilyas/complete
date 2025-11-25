@@ -87,7 +87,7 @@ class _ViewStudentInfoScreenState extends State<ViewStudentInfoScreen>
                           child: StreamBuilder<QuerySnapshot>(
                             stream: FirebaseFirestore.instance
                                 .collection("users")
-                                .orderBy("createdAt", descending: true)
+                                .where("studentName", isGreaterThan: "")
                                 .snapshots(),
                             builder: (context, snapshot) {
                               if (snapshot.connectionState ==
@@ -205,6 +205,9 @@ class _ViewStudentInfoScreenState extends State<ViewStudentInfoScreen>
 
   Widget _buildStudentCard(Map<String, dynamic> student, int index, String docId,
       Size size, double avatarSize) {
+    final displayName =
+        student["studentName"] ?? student["name"] ?? "Unknown";
+
     return Container(
       margin: EdgeInsets.only(bottom: size.height * 0.02),
       child: Material(
@@ -244,20 +247,10 @@ class _ViewStudentInfoScreenState extends State<ViewStudentInfoScreen>
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _getGradientColors(index)[0].withOpacity(0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
                     ),
                     child: Center(
                       child: Text(
-                        (student["studentName"] ?? "?")
-                            .toString()
-                            .substring(0, 1)
-                            .toUpperCase(),
+                        displayName.substring(0, 1).toUpperCase(),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: size.width * 0.06,
@@ -273,7 +266,7 @@ class _ViewStudentInfoScreenState extends State<ViewStudentInfoScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        student["studentName"] ?? "Unknown",
+                        displayName,
                         style: TextStyle(
                           fontSize: size.width * 0.05,
                           fontWeight: FontWeight.bold,
@@ -328,6 +321,9 @@ class _ViewStudentInfoScreenState extends State<ViewStudentInfoScreen>
 
   void _showStudentDetails(
       Map<String, dynamic> student, String docId, int index, Size size) {
+    final displayName =
+        student["studentName"] ?? student["name"] ?? "Unknown";
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -341,7 +337,8 @@ class _ViewStudentInfoScreenState extends State<ViewStudentInfoScreen>
             decoration: const BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+                  topLeft: Radius.circular(30),
+                  topRight: Radius.circular(30)),
             ),
             child: SingleChildScrollView(
               controller: scrollController,
@@ -356,16 +353,13 @@ class _ViewStudentInfoScreenState extends State<ViewStudentInfoScreen>
                         width: size.width * 0.28,
                         height: size.width * 0.28,
                         decoration: BoxDecoration(
-                          gradient:
-                          LinearGradient(colors: _getGradientColors(index)),
+                          gradient: LinearGradient(
+                              colors: _getGradientColors(index)),
                           borderRadius: BorderRadius.circular(25),
                         ),
                         child: Center(
                           child: Text(
-                            (student["studentName"] ?? "?")
-                                .toString()
-                                .substring(0, 1)
-                                .toUpperCase(),
+                            displayName.substring(0, 1).toUpperCase(),
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: size.width * 0.1,
@@ -379,7 +373,7 @@ class _ViewStudentInfoScreenState extends State<ViewStudentInfoScreen>
                   SizedBox(height: size.height * 0.025),
                   Center(
                     child: Text(
-                      student["studentName"] ?? "Unknown",
+                      displayName,
                       style: TextStyle(
                         fontSize: size.width * 0.07,
                         fontWeight: FontWeight.bold,
@@ -388,11 +382,11 @@ class _ViewStudentInfoScreenState extends State<ViewStudentInfoScreen>
                     ),
                   ),
                   SizedBox(height: size.height * 0.025),
-                  _buildContactInfo(Icons.email, student["email"] ?? "-",
-                      Colors.blue, size),
+                  _buildContactInfo(Icons.email,
+                      student["email"] ?? "-", Colors.blue, size),
                   SizedBox(height: size.height * 0.015),
-                  _buildContactInfo(Icons.phone, student["phone"] ?? "-",
-                      Colors.green, size),
+                  _buildContactInfo(Icons.phone,
+                      student["phone"] ?? "-", Colors.green, size),
                   SizedBox(height: size.height * 0.015),
                   Text(
                     "Student ID: ${student["studentId"] ?? "-"}",
@@ -400,12 +394,7 @@ class _ViewStudentInfoScreenState extends State<ViewStudentInfoScreen>
                   ),
                   SizedBox(height: size.height * 0.01),
                   Text(
-                    "Password: ${student["password"] ?? "-"}",
-                    style: TextStyle(fontSize: size.width * 0.045),
-                  ),
-                  SizedBox(height: size.height * 0.01),
-                  Text(
-                    "Created At: ${student["createdAt"] != null ? (student["createdAt"]).toDate().toString() : "-"}",
+                    "Created At: ${student["createdAt"] is Timestamp ? (student["createdAt"] as Timestamp).toDate() : student["createdAt"] ?? "-"}",
                     style: TextStyle(fontSize: size.width * 0.04),
                   ),
                 ],

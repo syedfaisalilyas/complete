@@ -63,8 +63,7 @@ class _CartScreenState extends State<CartScreen> {
                   padding: const EdgeInsets.all(16),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final data =
-                    docs[index].data() as Map<String, dynamic>;
+                    final data = docs[index].data() as Map<String, dynamic>;
                     final productId = docs[index].id;
 
                     final name = data['name'] ?? "Unnamed";
@@ -100,15 +99,15 @@ class _CartScreenState extends State<CartScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(name,
                                       style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16)),
                                   const SizedBox(height: 4),
-                                  Text("Price: ${price.toStringAsFixed(3)} OMR"),
+                                  Text(
+                                      "Price: ${price.toStringAsFixed(3)} OMR"),
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
@@ -158,7 +157,8 @@ class _CartScreenState extends State<CartScreen> {
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
+                              icon:
+                              const Icon(Icons.delete, color: Colors.red),
                               onPressed: () async {
                                 await FirebaseFirestore.instance
                                     .collection('cart')
@@ -205,10 +205,6 @@ class _CartScreenState extends State<CartScreen> {
                               borderRadius: BorderRadius.circular(10)),
                         ),
                         onPressed: () {
-                          Get.snackbar("Checkout",
-                              "Proceeding to payment (dummy)...",
-                              backgroundColor: Colors.green,
-                              colorText: Colors.white);
                           Get.to(() => PaymentScreen(totalAmount: total));
                         },
                         child: const Text(

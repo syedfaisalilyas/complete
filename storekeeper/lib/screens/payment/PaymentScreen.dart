@@ -24,6 +24,37 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   bool isProcessing = false;
 
+  /// ======== Calendar Picker for Expiry (MM/YY) ========
+  Future<void> _pickExpiryDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 15),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF6A7FD0),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final mm = picked.month.toString().padLeft(2, '0');
+      final yy = (picked.year % 100).toString().padLeft(2, '0');
+      setState(() {
+        expiryCtrl.text = "$mm/$yy";
+      });
+    }
+  }
+
   Future<void> _handlePayment() async {
     if (!_formKey.currentState!.validate()) return;
     if (user == null) return;
@@ -39,32 +70,72 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final cartItems = await cartRef.get();
 
       if (cartItems.docs.isEmpty) {
-        Get.snackbar("Cart Empty", "No items to process.");
+        Get.snackbar("Cart Empty", "No items to process.",
+            backgroundColor: Colors.red, colorText: Colors.white);
         return;
       }
 
-      // ✅ Prepare order data
+      final ordersCollection =
+      FirebaseFirestore.instance.collection('orders');
+      final orderDocRef = ordersCollection.doc(); // auto ID
+      final orderId = orderDocRef.id;
+
+      // ===== Prepare order data (bill) =====
       final orderData = {
+        'orderId': orderId,
         'userId': user!.uid,
         'totalAmount': widget.totalAmount,
         'paymentMethod': 'Dummy Card',
         'cardName': nameCtrl.text.trim(),
         'cardNumber': cardNumberCtrl.text.trim(),
         'expiry': expiryCtrl.text.trim(),
+        'status': 'Confirmed',
         'timestamp': FieldValue.serverTimestamp(),
         'items': cartItems.docs.map((doc) => doc.data()).toList(),
       };
 
-      // ✅ Save to Firestore
-      await FirebaseFirestore.instance.collection('orders').add(orderData);
+      // Save order (acts like a bill)
+      await orderDocRef.set(orderData);
 
-      // ✅ Clear the cart
+      // ===== Create Invoice =====
+      final invoiceId = "INV-${DateTime.now().millisecondsSinceEpoch}";
+      await FirebaseFirestore.instance
+          .collection('invoices')
+          .doc(invoiceId)
+          .set({
+        'invoiceId': invoiceId,
+        'orderId': orderId,
+        'userId': user!.uid,
+        'amount': widget.totalAmount,
+        'createdAt': FieldValue.serverTimestamp(),
+        'items': cartItems.docs.map((doc) => doc.data()).toList(),
+      });
+
+      // ===== Create Notification =====
+      await FirebaseFirestore.instance
+          .collection('notifications')
+          .doc(user!.uid)
+          .collection('items')
+          .add({
+        'title': 'Payment Successful',
+        'message':
+        'Your order #$orderId has been placed successfully. Invoice: $invoiceId',
+        'type': 'payment',
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+
+      // ===== Clear Cart =====
       for (var doc in cartItems.docs) {
         await doc.reference.delete();
       }
 
-      // ✅ Navigate to Thank You Screen
-      Get.off(() => const ThankYouScreen());
+      // ===== Go to Thank You Screen with Order + Invoice info =====
+      Get.off(() => ThankYouScreen(
+        orderId: orderId,
+        invoiceId: invoiceId,
+        amount: widget.totalAmount,
+      ));
     } catch (e) {
       Get.snackbar("Error", e.toString(),
           backgroundColor: Colors.red, colorText: Colors.white);
@@ -86,7 +157,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const SizedBox(height: 10),
-                  // App Header
                   const Text(
                     "Uni Tools app",
                     style: TextStyle(
@@ -96,15 +166,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  // Payment Card Image
                   Image.asset(
-                    'assets/images/payment_card.png',
+                    'assets/images/payment/payment1.png',
                     height: 120,
                     fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 25),
-
-                  // White Form Container
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -138,8 +205,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                   counterText: "",
                                 ),
                                 validator: (v) {
-                                  if (v == null || v.isEmpty) return "Enter card number";
-                                  if (v.length != 16) return "Must be 16 digits";
+                                  if (v == null || v.isEmpty) {
+                                    return "Enter card number";
+                                  }
+                                  if (v.length != 16) {
+                                    return "Must be 16 digits";
+                                  }
                                   return null;
                                 },
                               ),
@@ -150,8 +221,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                   labelText: "Card Holder Name",
                                   hintText: "Enter card holder name",
                                 ),
-                                validator: (v) =>
-                                v == null || v.trim().isEmpty ? "Enter cardholder name" : null,
+                                validator: (v) => v == null ||
+                                    v.trim().isEmpty
+                                    ? "Enter cardholder name"
+                                    : null,
                               ),
                               const SizedBox(height: 8),
                               Row(
@@ -159,17 +232,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                   Expanded(
                                     child: TextFormField(
                                       controller: expiryCtrl,
-                                      keyboardType: TextInputType.datetime,
-                                      maxLength: 5,
+                                      readOnly: true,
+                                      onTap: _pickExpiryDate,
                                       decoration: const InputDecoration(
-                                        labelText: "Exp Date",
+                                        labelText: "Expiry Date",
                                         hintText: "MM/YY",
-                                        counterText: "",
                                       ),
                                       validator: (v) {
-                                        if (v == null || v.isEmpty) return "Enter expiry";
-                                        final regex = RegExp(r"^(0[1-9]|1[0-2])\/\d{2}$");
-                                        if (!regex.hasMatch(v)) return "Format MM/YY";
+                                        if (v == null || v.isEmpty) {
+                                          return "Select expiry date";
+                                        }
                                         return null;
                                       },
                                     ),
@@ -187,8 +259,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                         counterText: "",
                                       ),
                                       validator: (v) {
-                                        if (v == null || v.isEmpty) return "Enter CVV";
-                                        if (v.length != 3) return "3 digits only";
+                                        if (v == null || v.isEmpty) {
+                                          return "Enter CVV";
+                                        }
+                                        if (v.length != 3) {
+                                          return "3 digits only";
+                                        }
                                         return null;
                                       },
                                     ),
@@ -208,14 +284,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                 width: double.infinity,
                                 height: 50,
                                 child: ElevatedButton(
-                                  onPressed: isProcessing ? null : _handlePayment,
+                                  onPressed:
+                                  isProcessing ? null : _handlePayment,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.orange,
                                     shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10)),
+                                        borderRadius:
+                                        BorderRadius.circular(10)),
                                   ),
                                   child: isProcessing
-                                      ? const CircularProgressIndicator(color: Colors.white)
+                                      ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
                                       : const Text(
                                     "Pay Now",
                                     style: TextStyle(

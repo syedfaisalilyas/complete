@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:get/get.dart';
+import 'BorrowFeedbackScreen.dart';
 
 class BorrowStatusScreen extends StatelessWidget {
   final Map<String, dynamic> requestData;
@@ -175,8 +176,8 @@ class BorrowStatusScreen extends StatelessWidget {
                               style: TextStyle(fontSize: 14)),
                           const Text(
                               "   This amount will be refunded after successful return in good condition.",
-                              style:
-                              TextStyle(fontSize: 13, color: Colors.black54)),
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.black54)),
                           const SizedBox(height: 5),
                           Text("3 - Refund Status: Pending",
                               style: const TextStyle(fontSize: 14)),
@@ -184,6 +185,36 @@ class BorrowStatusScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 30),
+
+                  // ⭐⭐⭐ GIVE FEEDBACK BUTTON (NEW)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Get.to(() => BorrowFeedbackScreen(
+                          requestId: requestData["id"],
+                        ));
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        "Give Feedback",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+
                 ],
               ),
             ),

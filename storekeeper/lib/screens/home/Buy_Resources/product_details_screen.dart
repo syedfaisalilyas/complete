@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../services/notification_service.dart';
+
 class ProductDetailScreen extends StatefulWidget {
   final Map<String, dynamic> productData;
 
@@ -17,9 +19,258 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   String selectedCapacity = '32GB';
   String selectedColor = 'Red';
 
+  // ---------- Rating + Feedback ----------
+  double userRating = 0;
+  bool _loadingUserRating = false;
+  final TextEditingController feedbackCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final data = widget.productData;
+    final productId =
+        data['id']?.toString() ?? data['name']?.toString() ?? '';
+    if (productId.isNotEmpty) {
+      _loadUserRating(productId);
+    }
+  }
+
+  Future<void> _loadUserRating(String productId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => _loadingUserRating = true);
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection("products")
+          .doc(productId)
+          .collection("ratings")
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists) {
+        final ratingVal = (doc.data()?['rating'] ?? 0) as num;
+        setState(() {
+          userRating = ratingVal.toDouble();
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loadingUserRating = false);
+    }
+  }
+
+  Future<void> _submitRating(String productId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      Get.snackbar(
+        "Login required",
+        "Please login to rate this product.",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (userRating <= 0) {
+      Get.snackbar(
+        "Rating required",
+        "Please select a rating.",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    await FirebaseFirestore.instance
+        .collection("products")
+        .doc(productId)
+        .collection("ratings")
+        .doc(user.uid)
+        .set({
+      "userId": user.uid,
+      "rating": userRating,
+      "updatedAt": FieldValue.serverTimestamp(),
+    });
+
+    Get.snackbar(
+      "Rating saved",
+      "Your rating has been updated.",
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
+    );
+  }
+
+  Future<void> _submitFeedback(String productId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      Get.snackbar(
+        "Login required",
+        "Please login to give feedback.",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    final text = feedbackCtrl.text.trim();
+    if (text.isEmpty) {
+      Get.snackbar(
+        "Feedback required",
+        "Please write something.",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    await FirebaseFirestore.instance
+        .collection("products")
+        .doc(productId)
+        .collection("feedbacks")
+        .add({
+      "userId": user.uid,
+      "feedback": text,
+      "timestamp": FieldValue.serverTimestamp(),
+    });
+
+    feedbackCtrl.clear();
+
+    Get.snackbar(
+      "Feedback submitted",
+      "Thank you for your feedback!",
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
+    );
+  }
+
+  // Average rating from ratings subcollection
+  Widget _averageRatingWidget(String productId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection("products")
+          .doc(productId)
+          .collection("ratings")
+          .snapshots(),
+      builder: (context, snap) {
+        if (!snap.hasData || snap.data!.docs.isEmpty) {
+          return const Text(
+            "No ratings yet",
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          );
+        }
+
+        double total = 0;
+        for (var doc in snap.data!.docs) {
+          total += (doc['rating'] as num).toDouble();
+        }
+        final avg = total / snap.data!.docs.length;
+
+        return Row(
+          children: [
+            ...List.generate(
+              5,
+                  (i) => Icon(
+                i < avg ? Icons.star : Icons.star_border,
+                color: Colors.amber,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              avg.toStringAsFixed(1),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              "(${snap.data!.docs.length} reviews)",
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Feedback list
+  Widget _feedbackList(String productId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection("products")
+          .doc(productId)
+          .collection("feedbacks")
+          .orderBy("timestamp", descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return const Text(
+            "No feedback yet.",
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          );
+        }
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final fb = docs[index];
+            final text = fb['feedback'] ?? '';
+            final ts = fb['timestamp'];
+            String timeLabel = "Just now";
+            if (ts != null) {
+              final dt = ts.toDate();
+              timeLabel = dt.toString().substring(0, 16); // yyyy-mm-dd hh:mm
+            }
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    text,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    timeLabel,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = widget.productData;
+
+    // IMPORTANT: use id if exists, else fallback to name
+    final productId =
+        data['id']?.toString() ?? data['name']?.toString() ?? '';
 
     final imageUrl = data['image']?.toString().trim() ?? '';
     final name = data['name'] ?? 'Unnamed Product';
@@ -51,8 +302,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           children: [
                             GestureDetector(
                               onTap: () => Get.back(),
-                              child: const Icon(Icons.arrow_back_ios,
-                                  color: Colors.white),
+                              child: const Icon(
+                                Icons.arrow_back_ios,
+                                color: Colors.white,
+                              ),
                             ),
                             const Spacer(),
                           ],
@@ -94,8 +347,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(40)),
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(40),
+                  ),
                 ),
                 child: SingleChildScrollView(
                   child: Column(
@@ -112,27 +366,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                       const SizedBox(height: 5),
 
-                      // Ratings + Reviews
-                      Row(
-                        children: [
-                          const Icon(Icons.star,
-                              color: Colors.amber, size: 18),
-                          const Icon(Icons.star,
-                              color: Colors.amber, size: 18),
-                          const Icon(Icons.star,
-                              color: Colors.amber, size: 18),
-                          const Icon(Icons.star,
-                              color: Colors.amber, size: 18),
-                          const Icon(Icons.star_border,
-                              color: Colors.amber, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            "${data['numberOfReviews'] ?? 0} reviews",
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 13),
-                          ),
-                        ],
-                      ),
+                      // ⭐ Average rating (dynamic)
+                      if (productId.isNotEmpty) _averageRatingWidget(productId),
+
                       const SizedBox(height: 10),
 
                       // Description
@@ -156,8 +392,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ),
                       const SizedBox(height: 20),
 
-                      // Capacity (if applicable)
-
                       // Price
                       Text(
                         "Price: $price OMR",
@@ -176,12 +410,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       const SizedBox(height: 20),
 
                       // Quantity Selector
-                      // Quantity Selector
                       Row(
                         mainAxisAlignment: MainAxisAlignment.start,
                         children: [
                           _qtyButton(Icons.remove, () {
-                            if (quantity > 1) setState(() => quantity--);
+                            if (quantity > 1) {
+                              setState(() => quantity--);
+                            }
                           }),
                           Container(
                             width: 40,
@@ -189,7 +424,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             child: Text(
                               quantity.toString(),
                               style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           _qtyButton(Icons.add, () {
@@ -210,8 +447,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
                       const SizedBox(height: 30),
 
-                      // Add to Cart Button
-                      // Add to Cart Button
+                      // Add to Cart Button (now with dialog on success)
                       SizedBox(
                         width: double.infinity,
                         height: 50,
@@ -255,10 +491,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 .collection('cart')
                                 .doc(userId)
                                 .collection('items')
-                                .doc(data['id'] ?? name);
+                                .doc(productId.isNotEmpty ? productId : name);
 
                             final doc = await cartRef.get();
 
+                            // UPDATE quantity if exists
                             if (doc.exists) {
                               final currentQty = doc['quantity'] ?? 1;
                               final newQty = currentQty + quantity;
@@ -278,6 +515,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 'updatedAt': FieldValue.serverTimestamp(),
                               });
                             } else {
+                              // ADD new item
                               await cartRef.set({
                                 'name': name,
                                 'price': price,
@@ -291,12 +529,38 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               });
                             }
 
-                            Get.snackbar(
-                              "Added to Cart",
-                              "$name added successfully!",
-                              snackPosition: SnackPosition.BOTTOM,
-                              backgroundColor: Colors.green,
-                              colorText: Colors.white,
+                            // ================================
+                            // 🔔 SEND IN-APP NOTIFICATION HERE
+                            // ================================
+                            await InAppNotificationService.sendNotification(
+                              userId: user.uid,
+                              title: "Added to Cart",
+                              message: "$name has been added to your cart.",
+                              type: "cart",
+                            );
+
+                            // Show success dialog
+                            if (!mounted) return;
+                            showDialog(
+                              context: context,
+                              builder: (ctx) {
+                                return AlertDialog(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  title: const Text(
+                                    "Added to Cart",
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  content: Text("$name has been added to your cart."),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.of(ctx).pop(),
+                                      child: const Text("OK"),
+                                    ),
+                                  ],
+                                );
+                              },
                             );
                           },
                           style: ElevatedButton.styleFrom(
@@ -316,34 +580,113 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ),
                       ),
 
+                      const SizedBox(height: 30),
+
+                      // --------- Rating Section (ONE rating per user) ---------
+                      if (productId.isNotEmpty) ...[
+                        const Divider(),
+                        const Text(
+                          "Your Rating",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (_loadingUserRating)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: LinearProgressIndicator(),
+                          )
+                        else
+                          Row(
+                            children: List.generate(
+                              5,
+                                  (index) => IconButton(
+                                onPressed: () {
+                                  setState(() {
+                                    userRating = (index + 1).toDouble();
+                                  });
+                                },
+                                icon: Icon(
+                                  index < userRating
+                                      ? Icons.star
+                                      : Icons.star_border,
+                                  color: Colors.amber,
+                                ),
+                              ),
+                            ),
+                          ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: ElevatedButton(
+                            onPressed: () => _submitRating(productId),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueAccent,
+                              padding:
+                              const EdgeInsets.symmetric(horizontal: 20),
+                            ),
+                            child: const Text(
+                              "Save Rating",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // --------- Feedback (MULTIPLE per user) ---------
+                        const Text(
+                          "Write Feedback",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: feedbackCtrl,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: "Write your feedback about this product...",
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: ElevatedButton(
+                            onPressed: () => _submitFeedback(productId),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              padding:
+                              const EdgeInsets.symmetric(horizontal: 20),
+                            ),
+                            child: const Text(
+                              "Submit Feedback",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        const Text(
+                          "Students' Feedback",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _feedbackList(productId),
+                      ],
                     ],
                   ),
                 ),
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // ===== Reusable Color Option Widget =====
-  Widget _colorOption(String imagePath, String color) {
-    final isSelected = selectedColor == color;
-    return GestureDetector(
-      onTap: () => setState(() => selectedColor = color),
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          border: Border.all(
-              color: isSelected ? Colors.blueAccent : Colors.grey.shade400),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Image.asset(
-          imagePath,
-          width: 50,
-          height: 50,
-          color: isSelected ? null : Colors.grey.shade400,
         ),
       ),
     );

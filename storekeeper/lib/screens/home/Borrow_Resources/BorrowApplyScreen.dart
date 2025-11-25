@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+
+import 'BorrowFeedbackScreen.dart';
 import 'borrow_status_screen.dart';
 
 class BorrowApplyScreen extends StatefulWidget {
@@ -178,7 +180,7 @@ class _BorrowApplyScreenState extends State<BorrowApplyScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Deposit
+                      // DEPOSIT
                       TextFormField(
                         controller: _deposit,
                         keyboardType: TextInputType.number,
