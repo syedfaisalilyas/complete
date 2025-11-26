@@ -2,8 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:overlay_support/overlay_support.dart';
 
 import '../../../services/notification_service.dart';
+import '../../signUp/notification_widget.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final Map<String, dynamic> productData;
@@ -532,12 +534,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             // ================================
                             // 🔔 SEND IN-APP NOTIFICATION HERE
                             // ================================
-                            await InAppNotificationService.sendNotification(
-                              userId: user.uid,
-                              title: "Added to Cart",
-                              message: "$name has been added to your cart.",
-                              type: "cart",
+                            showOverlayNotification(
+                                  (context) => buildSuccessNotification("Added to cart", "$name added successfully!"),
+                              duration: Duration(seconds: 3),
                             );
+
+
 
                             // Show success dialog
                             if (!mounted) return;

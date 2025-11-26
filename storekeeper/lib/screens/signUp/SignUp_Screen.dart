@@ -3,9 +3,11 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:overlay_support/overlay_support.dart';
 import '../../core/app_theme.dart';
 import '../../core/app_styles.dart';
 import '../SignIn/SignIn_Screen.dart';
+import 'notification_widget.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -96,6 +98,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
           backgroundColor: Colors.green,
         ),
       );
+      showOverlayNotification(
+            (context) => buildSuccessNotification("Registration Successful", "Your account has been created successfully!"),
+        duration: Duration(seconds: 3),
+      );
+
+
 
       Get.to(() => const SignInScreen());
     } on FirebaseAuthException catch (e) {
