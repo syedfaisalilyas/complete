@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../services/notification_service.dart';
 import '../home/Home_Screen.dart';
@@ -25,8 +26,10 @@ class ThankYouScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF6A7FD0),
       body: SafeArea(
-        child: Center(
+        child: SingleChildScrollView(
+          physics: BouncingScrollPhysics(),
           child: Column(
+
             children: [
               const SizedBox(height: 20),
               const Text(
@@ -37,9 +40,9 @@ class ThankYouScreen extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-
+          
               const SizedBox(height: 60),
-
+          
               // WHITE BOX
               Container(
                 width: double.infinity,
@@ -57,7 +60,7 @@ class ThankYouScreen extends StatelessWidget {
                       height: 100,
                     ),
                     const SizedBox(height: 20),
-
+          
                     const Text(
                       "Thank you",
                       style: TextStyle(
@@ -66,16 +69,16 @@ class ThankYouScreen extends StatelessWidget {
                         color: Colors.black,
                       ),
                     ),
-
+          
                     const SizedBox(height: 10),
                     const Text(
                       "Your order has been placed successfully.",
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.black54, fontSize: 16),
                     ),
-
+          
                     const SizedBox(height: 16),
-
+          
                     // ==== INVOICE TEXT DETAILS ====
                     Text(
                       "Order ID: $orderId",
@@ -94,9 +97,39 @@ class ThankYouScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 14, color: Colors.black87),
                     ),
-
+          
                     const SizedBox(height: 25),
-
+          
+                    const SizedBox(height: 20),
+          
+                    Text(
+                      "Scan to view invoice",
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+          
+                    const SizedBox(height: 10),
+          
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 5,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: QrImageView(
+                        data: invoiceId,              // QR contains invoice ID
+                        version: QrVersions.auto,
+                        size: 160,
+                        backgroundColor: Colors.white,
+                      ),
+                    ),
+          
                     // ==============================
                     //    VIEW INVOICE BUTTON
                     // ==============================
@@ -123,9 +156,9 @@ class ThankYouScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-
+          
                     const SizedBox(height: 12),
-
+          
                     // ==============================
                     //            DONE BUTTON
                     // ==============================
@@ -142,7 +175,7 @@ class ThankYouScreen extends StatelessWidget {
                               type: "payment",
                             );
                           }
-
+          
                           Get.offAll(() => HomeScreen());
                         },
                         style: ElevatedButton.styleFrom(
@@ -161,7 +194,7 @@ class ThankYouScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-
+          
                   ],
                 ),
               ),

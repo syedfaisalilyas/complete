@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
+import '../../../services/tracking_service.dart';
 import 'BorrowFeedbackScreen.dart';
 import 'borrow_status_screen.dart';
 
@@ -69,6 +70,12 @@ class _BorrowApplyScreenState extends State<BorrowApplyScreen> {
     };
 
     await FirebaseFirestore.instance.collection('borrow_requests').add(request);
+    TrackingService.trackUserActivity(
+      productId: product['id'],
+      category: product['category'] ?? "",
+      name: product['name'],
+      borrowed: true,
+    );
 
     Get.snackbar("✅ Request Sent", "Your borrow request is pending approval.",
         backgroundColor: Colors.green, colorText: Colors.white);

@@ -57,6 +57,7 @@ dependencies:
   flutter_gemini:
   firebase_core:
   firebase_auth:
+  mobile_scanner:
   cloud_firestore:
   firebase_database:
   emoji_picker_flutter:

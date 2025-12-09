@@ -1,15 +1,20 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+
 import 'package:storekeeper/screens/home/Borrow_Resources/Borrow_Screen.dart';
 import 'package:storekeeper/screens/home/Buy_Resources/Buy_Screen.dart';
 import 'package:storekeeper/screens/home/Cart_Screen.dart';
 import 'package:storekeeper/screens/home/Drawer.dart';
 import 'package:storekeeper/screens/home/Logout_Screen.dart';
 import 'package:storekeeper/screens/home/Order_Screen.dart';
+
 import '../../core/app_styles.dart';
 import '../../core/app_theme.dart';
 import '../../controllers/Theme_Controller.dart';
+import '../../services/tracking_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,11 +27,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
   final ThemeController themeController = Get.find();
 
-  final List<Widget> screens = [
-    const HomeContent(),
-    const CartScreen(),
-    const OrderScreen(),
-    const LogoutScreen(),
+  final List<Widget> screens = const [
+    HomeContent(),
+    CartScreen(),
+    OrderScreen(),
+    LogoutScreen(),
   ];
 
   void onItemTapped(int index) {
@@ -37,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Obx(() {
       final isDark = themeController.isDarkMode.value;
+
       return Scaffold(
         resizeToAvoidBottomInset: false,
         drawer: const CustomDrawer(),
@@ -70,8 +76,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget navItem(IconData icon, String label, int index, bool isDark) {
-    bool isSelected = selectedIndex == index;
-    final iconColor = isDark ? Colors.white : AppTheme.primaryColor;
+    final bool isSelected = selectedIndex == index;
+    final Color iconColor = isDark ? Colors.white : AppTheme.primaryColor;
+
     return GestureDetector(
       onTap: () => onItemTapped(index),
       child: Container(
@@ -91,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 label,
                 style: TextStyle(fontSize: 11.sp, color: iconColor),
               ),
-            ]
+            ],
           ],
         ),
       ),
@@ -128,19 +135,20 @@ class _HomeContentState extends State<HomeContent> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final isDark = themeController.isDarkMode.value;
+      final bool isDark = themeController.isDarkMode.value;
 
       final containerBg = isDark ? Colors.grey[850] : AppTheme.primaryColor;
       final containerText = isDark ? Colors.white : AppTheme.secondaryColor;
       final searchBg = isDark ? Colors.grey[800] : AppTheme.primaryColor;
       final hintTextColor = isDark ? Colors.grey[400] : Colors.grey;
 
-      // filter logic
+      // filter logic for Buy / Borrow boxes
       final buyTitle = "buy_resource".tr;
       final borrowTitle = "borrow_resource".tr;
 
-      final showBuy = buyTitle.toLowerCase().contains(searchQuery.toLowerCase()) ||
-          searchQuery.isEmpty;
+      final showBuy =
+          buyTitle.toLowerCase().contains(searchQuery.toLowerCase()) ||
+              searchQuery.isEmpty;
       final showBorrow =
           borrowTitle.toLowerCase().contains(searchQuery.toLowerCase()) ||
               searchQuery.isEmpty;
@@ -154,7 +162,7 @@ class _HomeContentState extends State<HomeContent> {
         child: SafeArea(
           child: Column(
             children: [
-              // Top Row
+              // ---------- Top Row ----------
               Padding(
                 padding:
                 EdgeInsets.symmetric(horizontal: 15.w, vertical: 10.h),
@@ -162,9 +170,11 @@ class _HomeContentState extends State<HomeContent> {
                   children: [
                     Builder(
                       builder: (context) => IconButton(
-                        icon: Icon(Icons.menu,
-                            color:
-                            isDark ? Colors.white : AppTheme.primaryColor),
+                        icon: Icon(
+                          Icons.menu,
+                          color:
+                          isDark ? Colors.white : AppTheme.primaryColor,
+                        ),
                         onPressed: () {
                           _hideKeyboard();
                           Scaffold.of(context).openDrawer();
@@ -175,9 +185,8 @@ class _HomeContentState extends State<HomeContent> {
                     Text(
                       "app_title".tr,
                       style: AppStyles.large.copyWith(
-                        color: isDark
-                            ? Colors.white
-                            : AppTheme.primaryColor,
+                        color:
+                        isDark ? Colors.white : AppTheme.primaryColor,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -186,7 +195,7 @@ class _HomeContentState extends State<HomeContent> {
                 ),
               ),
 
-              // Top Image
+              // ---------- Top Image ----------
               Padding(
                 padding: EdgeInsets.symmetric(vertical: 20.h),
                 child: Image.asset(
@@ -197,7 +206,7 @@ class _HomeContentState extends State<HomeContent> {
                 ),
               ),
 
-              // Search Bar
+              // ---------- Search Bar ----------
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20.w),
                 child: TextField(
@@ -217,7 +226,10 @@ class _HomeContentState extends State<HomeContent> {
                     ),
                   ),
                   textInputAction: TextInputAction.search,
-                  onChanged: (v) => setState(() => searchQuery = v),
+                  onChanged: (v) {
+                    setState(() => searchQuery = v);
+                    TrackingService.trackSearch(v);
+                  },
                   onSubmitted: (_) => _hideKeyboard(),
                   onTapOutside: (_) => _hideKeyboard(),
                 ),
@@ -225,7 +237,7 @@ class _HomeContentState extends State<HomeContent> {
 
               SizedBox(height: 30.h),
 
-              // White container with buttons (unchanged)
+              // ---------- White Container (scrollable content: buy/borrow + recommendations) ----------
               Expanded(
                 child: Container(
                   width: 1.sw,
@@ -236,102 +248,112 @@ class _HomeContentState extends State<HomeContent> {
                       topRight: Radius.circular(30.r),
                     ),
                   ),
-                  child: Padding(
-                    padding: EdgeInsets.all(10.w),
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(12.w),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // BUY / BORROW BUTTONS
                         Row(
                           mainAxisAlignment:
                           MainAxisAlignment.spaceEvenly,
                           children: [
                             if (showBuy)
-                              GestureDetector(
+                              _homeButton(
+                                title: "buy_resource".tr,
+                                image: "assets/images/home/buy.png",
+                                isDark: isDark,
+                                bgColor: containerBg,
+                                textColor: containerText,
                                 onTap: () {
                                   Get.to(() => const BuyScreen());
                                 },
-                                child: Container(
-                                  width: 140.w,
-                                  height: 180.h,
-                                  padding: EdgeInsets.all(15.w),
-                                  decoration: BoxDecoration(
-                                    border:
-                                    Border.all(color: Colors.blue),
-                                    borderRadius:
-                                    BorderRadius.circular(16.r),
-                                    color: containerBg,
-                                  ),
-                                  child: SingleChildScrollView(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                      MainAxisAlignment.center,
-                                      children: [
-                                        Image.asset(
-                                          "assets/images/home/buy.png",
-                                          height: 60.h,
-                                          color: isDark
-                                              ? Colors.white
-                                              : null,
-                                        ),
-                                        SizedBox(height: 10.h),
-                                        Text(
-                                          "buy_resource".tr,
-                                          textAlign: TextAlign.center,
-                                          style: AppStyles.small1
-                                              .copyWith(
-                                            color: containerText,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
                               ),
                             if (showBorrow)
-                              GestureDetector(
+                              _homeButton(
+                                title: "borrow_resource".tr,
+                                image: "assets/images/home/borrow.png",
+                                isDark: isDark,
+                                bgColor: containerBg,
+                                textColor: containerText,
                                 onTap: () {
                                   Get.to(() => const BorrowScreen());
                                 },
-                                child: Container(
-                                  width: 140.w,
-                                  height: 180.h,
-                                  padding: EdgeInsets.all(15.w),
-                                  decoration: BoxDecoration(
-                                    border:
-                                    Border.all(color: Colors.blue),
-                                    borderRadius:
-                                    BorderRadius.circular(16.r),
-                                    color: containerBg,
-                                  ),
-                                  child: SingleChildScrollView(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                      MainAxisAlignment.center,
-                                      children: [
-                                        Image.asset(
-                                          "assets/images/home/borrow.png",
-                                          height: 60.h,
-                                          color: isDark
-                                              ? Colors.white
-                                              : null,
-                                        ),
-                                        SizedBox(height: 10.h),
-                                        Text(
-                                          "borrow_resource".tr,
-                                          textAlign: TextAlign.center,
-                                          style: AppStyles.small1
-                                              .copyWith(
-                                            color: containerText,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
                               ),
                           ],
+                        ),
+
+                        SizedBox(height: 25.h),
+
+                        // RECOMMENDATION SECTION
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: getUserRecommendations(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(20),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+
+                            if (!snapshot.hasData ||
+                                snapshot.data!.isEmpty) {
+                              return const SizedBox();
+                            }
+
+                            final items = snapshot.data!;
+
+                            return Column(
+                              crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Recommended for You",
+                                  style: TextStyle(
+                                    fontSize: 18.sp,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                                SizedBox(height: 12.h),
+                                SizedBox(
+                                  height: 200.h,
+                                  child: ListView.builder(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: items.length,
+                                    itemBuilder: (context, index) {
+                                      final item = items[index];
+
+                                      return GestureDetector(
+                                        onTap: () {
+                                          TrackingService
+                                              .trackUserActivity(
+                                            productId: item["id"] ??
+                                                item["name"],
+                                            category:
+                                            item["category"] ?? "",
+                                            name: item["name"] ?? "",
+                                            viewed: true,
+                                          );
+
+                                          Get.toNamed(
+                                            "/productDetail",
+                                            arguments: item,  // NOW VALID WITH ID
+                                          );
+                                        },
+                                        child:
+                                        _recommendedCard(item),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                SizedBox(height: 20.h),
+                              ],
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -344,4 +366,150 @@ class _HomeContentState extends State<HomeContent> {
       );
     });
   }
+
+  // ---------- Helper: main home buttons ----------
+  Widget _homeButton({
+    required String title,
+    required String image,
+    required bool isDark,
+    required Color? bgColor,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 140.w,
+        padding: EdgeInsets.symmetric(vertical: 20.h, horizontal: 12.w),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.blue),
+          borderRadius: BorderRadius.circular(16.r),
+          color: bgColor,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              image,
+              height: 60.h,
+              color: isDark ? Colors.white : null,
+            ),
+            SizedBox(height: 10.h),
+
+            // FIX: limit title to 1-line or wrap without overflow
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppStyles.small1.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  // ---------- Helper: recommended item card ----------
+  Widget _recommendedCard(Map<String, dynamic> item) {
+    final imageUrl = (item["image"] ?? "").toString();
+
+    return Container(
+      width: 140.w,
+      margin: EdgeInsets.only(right: 12.w),
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.blue),
+        borderRadius: BorderRadius.circular(16.r),
+        color: Colors.white,
+      ),
+      child: Column(
+        children: [
+          Image.network(
+            imageUrl,
+            height: 60.h,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) =>
+            const Icon(Icons.broken_image, size: 60),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item["name"] ?? "No Name",
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "${item['price']} OMR",
+            style: TextStyle(
+              fontSize: 12.sp,
+              color: Colors.green,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =========================
+// RECOMMENDATIONS HELPER
+// =========================
+Future<List<Map<String, dynamic>>> getUserRecommendations() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return [];
+
+  final activityRef = FirebaseFirestore.instance
+      .collection("users")
+      .doc(user.uid)
+      .collection("activity");
+
+  final snapshot = await activityRef.get();
+  if (snapshot.docs.isEmpty) return [];
+
+  Map<String, int> categoryScore = {};
+
+  for (final doc in snapshot.docs) {
+    final data = doc.data();
+    final category = data["category"] ?? "";
+
+    if (category.isEmpty) continue;
+
+    int score = 0;
+    if (data["viewed"] == true) score += 1;
+    if (data["addedToCart"] == true) score += 3;
+    if (data["rated"] == true) score += 5;
+    if (data["purchased"] == true) score += 10;
+
+    categoryScore[category] = (categoryScore[category] ?? 0) + score;
+  }
+
+  if (categoryScore.isEmpty) return [];
+
+  final topCategory = categoryScore.entries
+      .reduce((a, b) => a.value > b.value ? a : b)
+      .key;
+
+  final productSnap = await FirebaseFirestore.instance
+      .collection("products")
+      .where("category", isEqualTo: topCategory)
+      .limit(6)
+      .get();
+
+  return productSnap.docs.map((doc) {
+    return {
+      "id": doc.id,
+      ...doc.data(),
+    };
+  }).toList();
 }

@@ -12,6 +12,7 @@ import 'package:unitools/utils/constants/image_strings.dart';
 import 'package:unitools/utils/constants/sizes.dart';
 
 import '../crudScreens/AdminBorrowApprovalScreen.dart';
+import 'StoreKeeperScanInvoiceScreen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -29,15 +30,20 @@ class HomeScreen extends StatelessWidget {
     },
     {
       "image": TImages.gridLayoutIcon,
-      "text": "Update resource \n& tools",
-      "onTap": () => Get.to(() =>
-          UpdateResourcesAndToolsScreen())
+      "text": "Scan Invoice",
+      "onTap": () => Get.to(() => StoreKeeperScanInvoiceScreen())
     },
     {
       "image": TImages.gridLayoutIcon,
-      "text": "Delete resource \n& tools",
-      "onTap": () => Get.to(() => DeleteResourcesAndToolsScreen())
+      "text": "Update/Delete resource \n& tools",
+      "onTap": () => Get.to(() =>
+          UpdateResourcesAndToolsScreen())
     },
+    // {
+    //   "image": TImages.gridLayoutIcon,
+    //   "text": "Delete resource \n& tools",
+    //   "onTap": () => Get.to(() => DeleteResourcesAndToolsScreen())
+    // },
     {
       "image": TImages.gridLayoutIcon,
       "text": "Manage Borrow resource \n& tools",

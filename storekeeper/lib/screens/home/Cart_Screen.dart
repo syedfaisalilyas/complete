@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../services/tracking_service.dart';
 import '../payment/PaymentScreen.dart';
 
 class CartScreen extends StatefulWidget {
@@ -149,6 +150,14 @@ class _CartScreenState extends State<CartScreen> {
                                               .update({
                                             'quantity': qty + 1,
                                           });
+
+                                          TrackingService.trackUserActivity(
+                                            productId: productId,
+                                            category: data['category'] ?? "",
+                                            name: data['name'] ?? "",
+                                            addedToCart: true,
+                                          );
+
                                         },
                                       ),
                                     ],

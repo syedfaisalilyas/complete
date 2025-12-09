@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:overlay_support/overlay_support.dart';
 
 import '../../../services/notification_service.dart';
+import '../../../services/tracking_service.dart';
 import '../../signUp/notification_widget.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -32,6 +33,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final data = widget.productData;
     final productId =
         data['id']?.toString() ?? data['name']?.toString() ?? '';
+    TrackingService.trackUserActivity(
+      productId: productId,
+      category: data["category"] ?? "",
+      name: data["name"] ?? "",
+      viewed: true,
+    );
+
     if (productId.isNotEmpty) {
       _loadUserRating(productId);
     }
@@ -530,6 +538,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 'addedAt': FieldValue.serverTimestamp(),
                               });
                             }
+                            TrackingService.trackUserActivity(
+                              productId: productId,
+                              category: category,
+                              name: name,
+                              addedToCart: true,
+                            );
 
                             // ================================
                             // 🔔 SEND IN-APP NOTIFICATION HERE
@@ -538,7 +552,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   (context) => buildSuccessNotification("Added to cart", "$name added successfully!"),
                               duration: Duration(seconds: 3),
                             );
-
 
 
                             // Show success dialog

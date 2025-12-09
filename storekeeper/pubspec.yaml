@@ -29,6 +29,8 @@ dependencies:
   rxdart: ^0.28.0
   http: ^1.5.0
   overlay_support:
+  qr_flutter:
+  mobile_scanner:
 
 dev_dependencies:
   flutter_test:

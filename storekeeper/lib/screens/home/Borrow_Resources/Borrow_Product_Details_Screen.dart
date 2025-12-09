@@ -8,6 +8,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:storekeeper/screens/home/Borrow_Resources/Borrow_Products_Screen.dart';
 import '../../../core/app_styles.dart';
 import '../../../core/app_theme.dart';
+import '../../../services/tracking_service.dart';
 
 class BorrowProductDetailScreen extends StatefulWidget {
   final String productId;
@@ -77,6 +78,13 @@ class _BorrowProductDetailScreenState extends State<BorrowProductDetailScreen> {
 
       setState(() {
         product = productData;
+        TrackingService.trackUserActivity(
+          productId: widget.productId,
+          category: product?["category"] ?? "",
+          name: product?["name"] ?? "",
+          viewed: true,
+        );
+
         productDetail = detailData;
 
         if (detailData != null) {
@@ -166,6 +174,15 @@ class _BorrowProductDetailScreenState extends State<BorrowProductDetailScreen> {
         "borrowDurationMinutes": _durMinutes,
         "createdAt": FieldValue.serverTimestamp(),
       });
+
+      TrackingService.trackUserActivity(
+        productId: widget.productId,
+        category: product?["category"] ?? "",
+        name: product?["name"] ?? "",
+        borrowed: true,
+        addedToCart: true,
+      );
+
 
       debugPrint("🛒 Borrow Product added to Firestore cart!");
       Get.snackbar("Success", "Borrow Product added to cart",

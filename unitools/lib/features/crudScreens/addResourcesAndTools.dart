@@ -41,15 +41,14 @@ class _AddResourcesAndToolsState extends State<AddResourcesAndToolsScreen> {
     "Needs Repair",
   ];
 
-  String? selectedMainCategory;
-  String? selectedSubCategory;
+  // ✅ Multi-select
+  List<String> selectedMainCategories = [];
+  List<String> selectedSubCategories = [];
   String? selectedCondition;
 
   @override
   void initState() {
     super.initState();
-    selectedMainCategory = mainCategories.first;
-    selectedSubCategory = subCategories.first;
     selectedCondition = conditions.first;
   }
 
@@ -83,6 +82,29 @@ class _AddResourcesAndToolsState extends State<AddResourcesAndToolsScreen> {
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // ✅ Validate category selections
+    if (selectedMainCategories.isEmpty) {
+      Get.snackbar(
+        "Category required",
+        "Please select at least one main category.",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    if (selectedSubCategories.isEmpty) {
+      Get.snackbar(
+        "Subcategory required",
+        "Please select at least one subcategory.",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
     final productId = await _getNextProductId();
     final price = double.tryParse(priceController.text) ?? 0.0;
     final stock = int.tryParse(stockController.text) ?? 0;
@@ -91,8 +113,9 @@ class _AddResourcesAndToolsState extends State<AddResourcesAndToolsScreen> {
       "id": productId,
       "name": nameController.text.trim(),
       "description": descriptionController.text.trim(),
-      "category": selectedMainCategory,
-      "subcategory": selectedSubCategory,
+      // ✅ Now as list
+      "categories": selectedMainCategories,
+      "subcategories": selectedSubCategories,
       "price": price,
       "stock": stock,
       "condition": selectedCondition,
@@ -154,39 +177,56 @@ class _AddResourcesAndToolsState extends State<AddResourcesAndToolsScreen> {
                         const SizedBox(height: TSizes.md),
                         _buildTextField("Product Name", nameController, true),
                         const SizedBox(height: TSizes.md),
-                        _buildTextField("Description", descriptionController, true,
-                            maxLines: 3),
-                        const SizedBox(height: TSizes.md),
-                        _buildDropdown(
-                          "Category",
-                          mainCategories,
-                          selectedMainCategory!,
-                              (val) => setState(() =>
-                          selectedMainCategory = val ?? mainCategories.first),
+                        _buildTextField(
+                          "Description",
+                          descriptionController,
+                          true,
+                          maxLines: 3,
                         ),
                         const SizedBox(height: TSizes.md),
-                        _buildDropdown(
-                          "Subcategory",
-                          subCategories,
-                          selectedSubCategory!,
-                              (val) => setState(() =>
-                          selectedSubCategory = val ?? subCategories.first),
+
+                        // ✅ Multi-select main categories
+                        _buildMultiSelectChips(
+                          label: "Category",
+                          options: mainCategories,
+                          selectedValues: selectedMainCategories,
                         ),
                         const SizedBox(height: TSizes.md),
-                        _buildTextField("Price (OMR)", priceController, true,
-                            keyboardType: TextInputType.number),
+
+                        // ✅ Multi-select subcategories
+                        _buildMultiSelectChips(
+                          label: "Subcategory",
+                          options: subCategories,
+                          selectedValues: selectedSubCategories,
+                        ),
                         const SizedBox(height: TSizes.md),
-                        _buildTextField("Stock Quantity", stockController, true,
-                            keyboardType: TextInputType.number),
+
+                        _buildTextField(
+                          "Price (OMR)",
+                          priceController,
+                          true,
+                          keyboardType: TextInputType.number,
+                        ),
                         const SizedBox(height: TSizes.md),
+                        _buildTextField(
+                          "Stock Quantity",
+                          stockController,
+                          true,
+                          keyboardType: TextInputType.number,
+                        ),
+                        const SizedBox(height: TSizes.md),
+
+                        // Condition still normal dropdown
                         _buildDropdown(
                           "Condition",
                           conditions,
-                          selectedCondition!,
+                          selectedCondition ?? conditions.first,
                               (val) => setState(
-                                  () => selectedCondition = val ?? conditions.first),
+                                () => selectedCondition = val ?? conditions.first,
+                          ),
                         ),
                         const SizedBox(height: TSizes.md),
+
                         _buildTextField("Image URL", imageController, true),
                         const SizedBox(height: TSizes.lg),
                         PrimaryButton(
@@ -271,7 +311,8 @@ class _AddResourcesAndToolsState extends State<AddResourcesAndToolsScreen> {
 
         if (label.toLowerCase().contains("image")) {
           final url = value!.trim();
-          final isValidUrl = RegExp(r'^(https?:\/\/)').hasMatch(url.toLowerCase());
+          final isValidUrl =
+          RegExp(r'^(https?:\/\/)').hasMatch(url.toLowerCase());
           if (!isValidUrl) {
             return "Enter a valid image URL starting with http or https";
           }
@@ -279,6 +320,47 @@ class _AddResourcesAndToolsState extends State<AddResourcesAndToolsScreen> {
 
         return null;
       },
+    );
+  }
+
+  // ✅ New helper for multi-select
+  Widget _buildMultiSelectChips({
+    required String label,
+    required List<String> options,
+    required List<String> selectedValues,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: options.map((option) {
+            final isSelected = selectedValues.contains(option);
+            return FilterChip(
+              label: Text(option),
+              selected: isSelected,
+              onSelected: (value) {
+                setState(() {
+                  if (value) {
+                    selectedValues.add(option);
+                  } else {
+                    selectedValues.remove(option);
+                  }
+                });
+              },
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
@@ -326,24 +408,28 @@ class _AddResourcesAndToolsState extends State<AddResourcesAndToolsScreen> {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: TSizes.sm),
-              ...productData.entries.map((e) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("${e.key}: ",
-                        style:
-                        const TextStyle(fontWeight: FontWeight.bold)),
-                    Expanded(child: Text(e.value.toString())),
-                  ],
+              ...productData.entries.map(
+                    (e) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "${e.key}: ",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Expanded(child: Text(e.value.toString())),
+                    ],
+                  ),
                 ),
-              )),
+              ),
               const SizedBox(height: TSizes.lg),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6366F1),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 onPressed: () {
                   Navigator.pop(context);

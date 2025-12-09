@@ -37,10 +37,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return Obx(() {
       final isDark = themeController.isDarkMode.value;
 
-      final query = FirebaseFirestore.instance
-          .collection('products')
-          .where('category', isEqualTo: widget.category)
-          .where('subcategory', isEqualTo: widget.subCategory);
+      // ✅ NO category/subcategory filter in Firestore query anymore
+      // We will handle both old + new structures in Dart.
+      final query = FirebaseFirestore.instance.collection('products');
 
       return Scaffold(
         body: Container(
@@ -54,6 +53,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
           child: SafeArea(
             child: Column(
               children: [
+                // ------------------ HEADER ---------------------
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Row(
@@ -67,14 +67,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         child: Text(
                           widget.subCategory,
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold),
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
+
+                // ------------------ SEARCH ---------------------
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: TextField(
@@ -92,13 +95,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     ),
                   ),
                 ),
+
+                // ------------------ LIST ---------------------
                 Expanded(
                   child: Container(
                     decoration: const BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(40),
-                          topRight: Radius.circular(40)),
+                        topLeft: Radius.circular(40),
+                        topRight: Radius.circular(40),
+                      ),
                     ),
                     child: StreamBuilder<QuerySnapshot>(
                       stream: query.snapshots(),
@@ -110,11 +116,49 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           return const Center(child: Text("No products found"));
                         }
 
+                        // ✅ Handle both:
+                        // 1) old fields: "category", "subcategory"
+                        // 2) new fields: "categories" (List), "subcategories" (List)
                         final docs = snapshot.data!.docs.where((doc) {
                           final data = doc.data() as Map<String, dynamic>;
-                          final name = (data['name'] ?? '').toString().toLowerCase();
-                          return _searchQuery.isEmpty || name.contains(_searchQuery);
+
+                          final String? singleCategory =
+                          (data['category'] ?? data['Category']) as String?;
+                          final String? singleSubCategory =
+                          (data['subcategory'] ?? data['Subcategory'])
+                          as String?;
+
+                          final List<String> categoryList =
+                          (data['categories'] is List)
+                              ? List<String>.from(data['categories'])
+                              : <String>[];
+
+                          final List<String> subCategoryList =
+                          (data['subcategories'] is List)
+                              ? List<String>.from(data['subcategories'])
+                              : <String>[];
+
+                          // ✅ Match if either single field OR list contains it
+                          final bool matchCategory =
+                              singleCategory == widget.category ||
+                                  categoryList.contains(widget.category);
+
+                          final bool matchSubCategory =
+                              singleSubCategory == widget.subCategory ||
+                                  subCategoryList.contains(widget.subCategory);
+
+                          // ✅ Search filter
+                          final name =
+                          (data['name'] ?? '').toString().toLowerCase();
+                          final bool matchSearch = _searchQuery.isEmpty ||
+                              name.contains(_searchQuery);
+
+                          return matchCategory && matchSubCategory && matchSearch;
                         }).toList();
+
+                        if (docs.isEmpty) {
+                          return const Center(child: Text("No products found"));
+                        }
 
                         return ListView.builder(
                           padding: const EdgeInsets.all(16),
@@ -130,7 +174,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             return Card(
                               elevation: 3,
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16)),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                               child: Padding(
                                 padding: const EdgeInsets.all(12),
                                 child: Row(
@@ -153,14 +198,20 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                         children: [
-                                          Text(name,
-                                              style: const TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold)),
+                                          Text(
+                                            name,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
                                           const SizedBox(height: 5),
-                                          Text("Price: $price OMR",
-                                              style: const TextStyle(
-                                                  color: Colors.black54)),
+                                          Text(
+                                            "Price: $price OMR",
+                                            style: const TextStyle(
+                                              color: Colors.black54,
+                                            ),
+                                          ),
                                           const SizedBox(height: 8),
                                           SizedBox(
                                             height: 36,
@@ -169,24 +220,30 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                               onPressed: () {
                                                 if (isBorrow) {
                                                   Get.to(() => BorrowApplyScreen(
-                                                      productData: data));
+                                                    productData: data,
+                                                  ));
                                                 } else {
                                                   Get.to(() => ProductDetailScreen(
-                                                      productData: data));
+                                                    productData: data,
+                                                  ));
                                                 }
                                               },
                                               style: ElevatedButton.styleFrom(
-                                                  backgroundColor:
-                                                  const Color(0xFFFF9800),
-                                                  shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                      BorderRadius.circular(
-                                                          10))),
+                                                backgroundColor:
+                                                const Color(0xFFFF9800),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                  BorderRadius.circular(10),
+                                                ),
+                                              ),
                                               child: Text(
-                                                isBorrow ? "Borrow Now" : "Shop Now",
+                                                isBorrow
+                                                    ? "Borrow Now"
+                                                    : "Shop Now",
                                                 style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.bold),
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
                                             ),
                                           ),
