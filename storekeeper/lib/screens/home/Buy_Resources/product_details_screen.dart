@@ -8,6 +8,7 @@ import '../../../controllers/Theme_Controller.dart';
 import '../../../core/app_theme.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/tracking_service.dart';
+import '../../../translations.dart';
 import '../../signUp/notification_widget.dart';
 
 class ProductDetailScreen extends StatefulWidget {
@@ -28,6 +29,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   bool _loadingUserRating = false;
   final TextEditingController feedbackCtrl = TextEditingController();
 
+  bool get isArabic => Get.locale?.languageCode == "ar"; // ✅ NEW
+  bool _translating = false; // ✅ NEW
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +48,75 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
     if (productId.isNotEmpty) {
       _loadUserRating(productId);
+    }
+
+    // ✅ Auto-translate when Arabic selected
+    if (isArabic && productId.isNotEmpty) {
+      _autoTranslateProduct(productId);
+    }
+  }
+
+  /// ==========================
+  /// AUTO TRANSLATE PRODUCT (AR)
+  /// ==========================
+  Future<void> _autoTranslateProduct(String productId) async {
+    if (_translating) return;
+    _translating = true;
+
+    try {
+      final docRef =
+      FirebaseFirestore.instance.collection("products").doc(productId);
+      final doc = await docRef.get();
+      if (!doc.exists) return;
+
+      final data = doc.data() as Map<String, dynamic>;
+
+      final String name = (data['name'] ?? '').toString();
+      final String description = (data['description'] ?? '').toString();
+      final String category = (data['category'] ?? '').toString();
+      final String subcategory = (data['subcategory'] ?? '').toString();
+
+      String? nameAr = data['name_ar'];
+      String? descAr = data['description_ar'];
+      String? catAr = data['category_ar'];
+      String? subAr = data['subcategory_ar'];
+
+      final Map<String, dynamic> update = {};
+
+      if ((nameAr == null || nameAr.toString().trim().isEmpty) &&
+          name.trim().isNotEmpty) {
+        final t = await TranslationService.translate(name, "ar");
+        update['name_ar'] = t;
+      }
+
+      if ((descAr == null || descAr.toString().trim().isEmpty) &&
+          description.trim().isNotEmpty) {
+        final t = await TranslationService.translate(description, "ar");
+        update['description_ar'] = t;
+      }
+
+      if ((catAr == null || catAr.toString().trim().isEmpty) &&
+          category.trim().isNotEmpty) {
+        final t = await TranslationService.translate(category, "ar");
+        update['category_ar'] = t;
+      }
+
+      if ((subAr == null || subAr.toString().trim().isEmpty) &&
+          subcategory.trim().isNotEmpty) {
+        final t = await TranslationService.translate(subcategory, "ar");
+        update['subcategory_ar'] = t;
+      }
+
+      if (update.isNotEmpty) {
+        await docRef.update(update);
+        // also update local productData so UI shows instantly
+        widget.productData.addAll(update);
+        if (mounted) setState(() {});
+      }
+    } catch (e) {
+      debugPrint("Arabic translation error: $e");
+    } finally {
+      _translating = false;
     }
   }
 
@@ -308,13 +381,29 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         data['id']?.toString() ?? data['name']?.toString() ?? '';
 
     final imageUrl = data['image']?.toString().trim() ?? '';
-    final name = data['name'] ?? 'Unnamed Product';
+
+    // ✅ Dynamic AR/EN display values
+    final displayName = isArabic
+        ? (data['name_ar'] ?? data['name'] ?? 'Unnamed Product')
+        : (data['name'] ?? 'Unnamed Product');
+
+    final displayDescription = isArabic
+        ? (data['description_ar'] ??
+        data['description'] ??
+        'No description available.')
+        : (data['description'] ?? 'No description available.');
+
+    final displayCategory = isArabic
+        ? (data['category_ar'] ?? data['category'] ?? '')
+        : (data['category'] ?? '');
+
+    final displaySubcategory = isArabic
+        ? (data['subcategory_ar'] ?? data['subcategory'] ?? '')
+        : (data['subcategory'] ?? '');
+
     final price = data['price']?.toString() ?? '0.0';
-    final description = data['description'] ?? 'No description available.';
     final condition = data['condition'] ?? '';
     final stock = data['stock']?.toString() ?? '0';
-    final category = data['category'] ?? '';
-    final subcategory = data['subcategory'] ?? '';
 
     return Obx(() {
       final isDark = themeController.isDarkMode.value;
@@ -366,7 +455,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         imageUrl,
                         height: 180,
                         fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
+                        errorBuilder:
+                            (context, error, stackTrace) {
                           return Image.asset(
                             'assets/images/order/order.png',
                             height: 180,
@@ -402,7 +492,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       CrossAxisAlignment.start,
                       children: [
                         Text(
-                          name,
+                          displayName,
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -417,7 +507,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         const SizedBox(height: 10),
 
                         Text(
-                          description,
+                          displayDescription,
                           style: TextStyle(
                             fontSize: 13,
                             color: secondaryTextColor,
@@ -427,9 +517,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         const SizedBox(height: 15),
 
                         if (condition.isNotEmpty ||
-                            category.isNotEmpty)
+                            displayCategory.isNotEmpty)
                           Text(
-                            "Condition: $condition | Category: $category | Sub: $subcategory",
+                            "Condition: $condition | Category: $displayCategory | Sub: $displaySubcategory",
                             style: TextStyle(
                               fontSize: 12,
                               color: smallTextColor,
@@ -543,7 +633,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                   .collection('items')
                                   .doc(productId.isNotEmpty
                                   ? productId
-                                  : name);
+                                  : displayName);
 
                               final doc = await cartRef.get();
 
@@ -570,12 +660,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 });
                               } else {
                                 await cartRef.set({
-                                  'name': name,
+                                  'name': displayName,
+                                  'name_ar': data['name_ar'],
                                   'price': price,
                                   'imageUrl': imageUrl,
                                   'quantity': quantity,
-                                  'category': category,
-                                  'subcategory': subcategory,
+                                  'category': data['category'],
+                                  'subcategory': data['subcategory'],
+                                  'category_ar': data['category_ar'],
+                                  'subcategory_ar':
+                                  data['subcategory_ar'],
                                   'selectedCapacity':
                                   selectedCapacity,
                                   'selectedColor': selectedColor,
@@ -587,8 +681,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               TrackingService
                                   .trackUserActivity(
                                 productId: productId,
-                                category: category,
-                                name: name,
+                                category: data['category'] ?? '',
+                                name: displayName,
                                 addedToCart: true,
                               );
 
@@ -596,7 +690,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                     (context) =>
                                     buildSuccessNotification(
                                       "Added to cart",
-                                      "$name added successfully!",
+                                      "$displayName added successfully!",
                                     ),
                                 duration:
                                 const Duration(seconds: 3),
@@ -619,7 +713,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                           FontWeight.bold),
                                     ),
                                     content: Text(
-                                        "$name has been added to your cart."),
+                                        "$displayName has been added to your cart."),
                                     actions: [
                                       TextButton(
                                         onPressed: () =>
@@ -742,7 +836,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 ),
                               ),
                             ),
-                            style: TextStyle(color: mainTextColor),
+                            style:
+                            TextStyle(color: mainTextColor),
                           ),
                           const SizedBox(height: 10),
                           Align(

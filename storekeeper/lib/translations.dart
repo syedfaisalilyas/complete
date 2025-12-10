@@ -1,9 +1,34 @@
+import 'dart:ui';
+
 import 'package:get/get.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:get/get.dart';
+
+class LanguageController extends GetxController {
+  var selectedLang = "en".obs;
+
+  /// CHANGE LANGUAGE (en or ar)
+  void changeLanguage(String langCode) {
+    selectedLang.value = langCode;
+    Get.updateLocale(Locale(langCode)); // For tr() strings
+  }
+
+  /// AUTO TRANSLATE ANY TEXT TO SELECTED LANGUAGE
+  Future<String> auto(String text) async {
+    if (selectedLang.value == "en") return text; // No translation needed
+    if (text.trim().isEmpty) return text;
+
+    try {
+      return await TranslationService.translate(text, selectedLang.value);
+    } catch (_) {
+      return text; // fallback if API fails
+    }
+  }
+}
 
 class TranslationService {
-  static const String apiKey = "YOUR_GOOGLE_TRANSLATE_API_KEY";
+  static const String apiKey = "AIzaSyA2D1viyxvkgRziN6Rpwg9qRj-cKm2Huoo";
 
   static Future<String> translate(String text, String targetLang) async {
     final url = Uri.parse(

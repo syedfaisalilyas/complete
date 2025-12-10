@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../controllers/Theme_Controller.dart';
+import '../../../translations.dart';
 import '../Borrow_Resources/BorrowApplyScreen.dart';
 import '../Buy_Resources/product_details_screen.dart';
 
@@ -30,6 +31,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
   List<String> allNames = [];
   List<String> suggestions = [];
 
+  // avoid translating same product multiple times in one session
+  final Set<String> _translatingIds = {};
+
+  bool get _isArabic => Get.locale?.languageCode == 'ar';
+
   @override
   void initState() {
     super.initState();
@@ -40,11 +46,20 @@ class _ProductListScreenState extends State<ProductListScreen> {
     try {
       final snap =
       await FirebaseFirestore.instance.collection('products').get();
+
+      final langIsArabic = _isArabic;
+
       setState(() {
         allNames = snap.docs
             .map((d) {
           final data = d.data() as Map<String, dynamic>;
-          return (data['name'] ?? '').toString();
+
+          // if Arabic selected, prefer name_ar, fallback to name
+          final raw = langIsArabic
+              ? (data['name_ar'] ?? data['name'] ?? '')
+              : (data['name'] ?? '');
+
+          return raw.toString();
         })
             .where((s) => s.trim().isNotEmpty)
             .toList();
@@ -65,16 +80,38 @@ class _ProductListScreenState extends State<ProductListScreen> {
       ),
     );
 
-    return fuse.search(input)
-        .map((r) => r.item.toString())   // <-- FIXED
-        .take(5)
-        .toList();
+    return fuse.search(input).map((r) => r.item.toString()).take(5).toList();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  // ---------- STEP 3: ENSURE ARABIC CACHED IN FIRESTORE ----------
+  Future<void> _ensureArabicName(QueryDocumentSnapshot doc) async {
+    if (!_isArabic) return;
+    if (_translatingIds.contains(doc.id)) return;
+
+    final data = doc.data() as Map<String, dynamic>;
+    final existingNameAr = (data['name_ar'] ?? '').toString().trim();
+
+    // already has Arabic name → nothing to do
+    if (existingNameAr.isNotEmpty) return;
+
+    final originalName = (data['name'] ?? '').toString().trim();
+    if (originalName.isEmpty) return;
+
+    _translatingIds.add(doc.id);
+    try {
+      final translated = await TranslationService.translate(originalName, 'ar');
+      await doc.reference.update({'name_ar': translated});
+    } catch (e) {
+      // you can log this if you want
+    } finally {
+      _translatingIds.remove(doc.id);
+    }
   }
 
   @override
@@ -147,15 +184,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           });
                         },
                         decoration: InputDecoration(
-                          hintText: "Search resources...",
+                          hintText: "search_hint".tr, // 🔁 translated hint
                           hintStyle: TextStyle(
-                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                            color:
+                            isDark ? Colors.grey[400] : Colors.grey[600],
                           ),
                           filled: true,
                           fillColor: searchFill,
                           prefixIcon: Icon(
                             Icons.search,
-                            color: isDark ? Colors.white70 : Colors.blueAccent,
+                            color:
+                            isDark ? Colors.white70 : Colors.blueAccent,
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
@@ -226,14 +265,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             snapshot.data!.docs.isEmpty) {
                           return Center(
                             child: Text(
-                              "No products found",
+                              "no_borrow_products".tr, // or make a new key if you want
                               style: TextStyle(color: subTextColor),
                             ),
                           );
                         }
 
                         // ✅ Handle old + new structure, + search
-                        final docs = snapshot.data!.docs.where((doc) {
+                        final docs =
+                        snapshot.data!.docs.where((doc) {
                           final data =
                           doc.data() as Map<String, dynamic>;
 
@@ -246,27 +286,34 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
                           final List<String> categoryList =
                           (data['categories'] is List)
-                              ? List<String>.from(data['categories'])
+                              ? List<String>.from(
+                              data['categories'])
                               : <String>[];
 
                           final List<String> subCategoryList =
                           (data['subcategories'] is List)
-                              ? List<String>.from(data['subcategories'])
+                              ? List<String>.from(
+                              data['subcategories'])
                               : <String>[];
 
                           final bool matchCategory =
                               singleCategory == widget.category ||
-                                  categoryList.contains(widget.category);
+                                  categoryList
+                                      .contains(widget.category);
 
                           final bool matchSubCategory =
-                              singleSubCategory == widget.subCategory ||
-                                  subCategoryList
-                                      .contains(widget.subCategory);
+                              singleSubCategory ==
+                                  widget.subCategory ||
+                                  subCategoryList.contains(
+                                      widget.subCategory);
 
                           final name =
-                          (data['name'] ?? '').toString().toLowerCase();
-                          final bool matchSearch = _searchQuery.isEmpty ||
-                              name.contains(_searchQuery);
+                          (data['name'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          final bool matchSearch =
+                              _searchQuery.isEmpty ||
+                                  name.contains(_searchQuery);
 
                           return matchCategory &&
                               matchSubCategory &&
@@ -276,7 +323,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         if (docs.isEmpty) {
                           return Center(
                             child: Text(
-                              "No products found",
+                              "no_borrow_products".tr,
                               style: TextStyle(color: subTextColor),
                             ),
                           );
@@ -286,11 +333,26 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           padding: const EdgeInsets.all(16),
                           itemCount: docs.length,
                           itemBuilder: (context, i) {
+                            final snap = docs[i];
                             final data =
-                            docs[i].data() as Map<String, dynamic>;
-                            final name =
+                            snap.data() as Map<String, dynamic>;
+
+                            // STEP 3: ensure Arabic name is cached if needed
+                            _ensureArabicName(snap);
+
+                            final rawName =
                                 data['name'] ?? 'Unnamed Product';
-                            final price = data['price']?.toString() ?? '0';
+                            final nameAr =
+                            (data['name_ar'] ?? '').toString();
+
+                            final displayName = _isArabic
+                                ? (nameAr.isNotEmpty
+                                ? nameAr
+                                : rawName.toString())
+                                : rawName.toString();
+
+                            final price =
+                                data['price']?.toString() ?? '0';
                             final image = data['image'] ?? '';
 
                             final isBorrow =
@@ -330,16 +392,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            name,
+                                            displayName,
                                             style: TextStyle(
                                               fontSize: 16,
-                                              fontWeight: FontWeight.bold,
+                                              fontWeight:
+                                              FontWeight.bold,
                                               color: mainTextColor,
                                             ),
                                           ),
                                           const SizedBox(height: 5),
                                           Text(
-                                            "Price: $price OMR",
+                                            "${'price'.tr}: $price OMR",
                                             style: TextStyle(
                                               color: subTextColor,
                                             ),
@@ -352,35 +415,41 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                               onPressed: () {
                                                 if (isBorrow) {
                                                   Get.to(
-                                                        () => BorrowApplyScreen(
-                                                      productData: data,
-                                                    ),
+                                                        () =>
+                                                        BorrowApplyScreen(
+                                                          productData:
+                                                          data,
+                                                        ),
                                                   );
                                                 } else {
                                                   Get.to(
                                                         () =>
                                                         ProductDetailScreen(
-                                                          productData: data,
+                                                          productData:
+                                                          data,
                                                         ),
                                                   );
                                                 }
                                               },
-                                              style:
-                                              ElevatedButton.styleFrom(
+                                              style: ElevatedButton
+                                                  .styleFrom(
                                                 backgroundColor:
-                                                const Color(0xFFFF9800),
+                                                const Color(
+                                                    0xFFFF9800),
                                                 shape:
                                                 RoundedRectangleBorder(
                                                   borderRadius:
-                                                  BorderRadius.circular(
+                                                  BorderRadius
+                                                      .circular(
                                                       10),
                                                 ),
                                               ),
                                               child: Text(
                                                 isBorrow
-                                                    ? "Borrow Now"
-                                                    : "Shop Now",
-                                                style: const TextStyle(
+                                                    ? 'borrow_now'.tr
+                                                    : 'shop_now'.tr,
+                                                style:
+                                                const TextStyle(
                                                   color: Colors.white,
                                                   fontWeight:
                                                   FontWeight.bold,

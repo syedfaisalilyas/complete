@@ -21,7 +21,7 @@ void main() async {
 
   // Init GetX Theme Controller
   Get.put(ThemeController());
-
+  Get.put(LanguageController());
   runApp(
     const OverlaySupport.global(
       child: MyApp(),
