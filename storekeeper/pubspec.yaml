@@ -31,6 +31,7 @@ dependencies:
   overlay_support:
   qr_flutter:
   mobile_scanner:
+  fuzzy:
 
 dev_dependencies:
   flutter_test:

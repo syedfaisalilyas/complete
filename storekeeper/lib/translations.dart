@@ -1,4 +1,25 @@
 import 'package:get/get.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+class TranslationService {
+  static const String apiKey = "YOUR_GOOGLE_TRANSLATE_API_KEY";
+
+  static Future<String> translate(String text, String targetLang) async {
+    final url = Uri.parse(
+      "https://translation.googleapis.com/language/translate/v2?key=$apiKey",
+    );
+
+    final response = await http.post(url, body: {
+      "q": text,
+      "target": targetLang,
+      "format": "text",
+    });
+
+    final data = jsonDecode(response.body);
+    return data["data"]["translations"][0]["translatedText"];
+  }
+}
 
 class AppTranslations extends Translations {
   @override

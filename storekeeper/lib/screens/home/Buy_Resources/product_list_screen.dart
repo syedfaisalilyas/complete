@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fuzzy/fuzzy.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -24,6 +25,51 @@ class ProductListScreen extends StatefulWidget {
 class _ProductListScreenState extends State<ProductListScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
+
+  // ---------- AUTOCOMPLETE STATE ----------
+  List<String> allNames = [];
+  List<String> suggestions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAllNames();
+  }
+
+  Future<void> _loadAllNames() async {
+    try {
+      final snap =
+      await FirebaseFirestore.instance.collection('products').get();
+      setState(() {
+        allNames = snap.docs
+            .map((d) {
+          final data = d.data() as Map<String, dynamic>;
+          return (data['name'] ?? '').toString();
+        })
+            .where((s) => s.trim().isNotEmpty)
+            .toList();
+      });
+    } catch (_) {
+      // fail silently, normal search still works
+    }
+  }
+
+  List<String> getFuzzySuggestions(String input) {
+    if (input.trim().isEmpty) return [];
+    if (allNames.isEmpty) return [];
+
+    final fuse = Fuzzy(
+      allNames,
+      options: FuzzyOptions(
+        threshold: 0.4, // 0–1, higher = more fuzzy matches
+      ),
+    );
+
+    return fuse.search(input)
+        .map((r) => r.item.toString())   // <-- FIXED
+        .take(5)
+        .toList();
+  }
 
   @override
   void dispose() {
@@ -66,8 +112,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     children: [
                       GestureDetector(
                         onTap: () => Get.back(),
-                        child:
-                        const Icon(Icons.arrow_back_ios, color: Colors.white),
+                        child: const Icon(
+                          Icons.arrow_back_ios,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -84,28 +132,75 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   ),
                 ),
 
-                // ------------------ SEARCH ---------------------
+                // ------------------ SEARCH + AUTOCOMPLETE ---------------------
                 Padding(
                   padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: TextField(
-                    controller: _searchCtrl,
-                    onChanged: (v) =>
-                        setState(() => _searchQuery = v.toLowerCase()),
-                    decoration: InputDecoration(
-                      hintText: "Search resources...",
-                      hintStyle: TextStyle(
-                          color:
-                          isDark ? Colors.grey[400] : Colors.grey[600]),
-                      filled: true,
-                      fillColor: searchFill,
-                      prefixIcon: Icon(Icons.search,
-                          color: isDark ? Colors.white70 : Colors.blueAccent),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: BorderSide.none,
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _searchCtrl,
+                        onChanged: (v) {
+                          setState(() {
+                            _searchQuery = v.toLowerCase();
+                            suggestions = getFuzzySuggestions(v);
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: "Search resources...",
+                          hintStyle: TextStyle(
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          ),
+                          filled: true,
+                          fillColor: searchFill,
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: isDark ? Colors.white70 : Colors.blueAccent,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
                       ),
-                    ),
+
+                      // ---------- SUGGESTIONS DROPDOWN ----------
+                      if (suggestions.isNotEmpty)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(top: 5),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.grey[850] : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: suggestions.map((s) {
+                              return ListTile(
+                                dense: true,
+                                title: Text(
+                                  s,
+                                  style: TextStyle(color: mainTextColor),
+                                ),
+                                onTap: () {
+                                  _searchCtrl.text = s;
+                                  setState(() {
+                                    _searchQuery = s.toLowerCase();
+                                    suggestions.clear();
+                                  });
+                                  FocusScope.of(context).unfocus();
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
 
@@ -137,6 +232,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           );
                         }
 
+                        // ✅ Handle old + new structure, + search
                         final docs = snapshot.data!.docs.where((doc) {
                           final data =
                           doc.data() as Map<String, dynamic>;
@@ -150,29 +246,25 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
                           final List<String> categoryList =
                           (data['categories'] is List)
-                              ? List<String>.from(
-                              data['categories'])
+                              ? List<String>.from(data['categories'])
                               : <String>[];
 
                           final List<String> subCategoryList =
                           (data['subcategories'] is List)
-                              ? List<String>.from(
-                              data['subcategories'])
+                              ? List<String>.from(data['subcategories'])
                               : <String>[];
 
                           final bool matchCategory =
                               singleCategory == widget.category ||
-                                  categoryList
-                                      .contains(widget.category);
+                                  categoryList.contains(widget.category);
 
                           final bool matchSubCategory =
                               singleSubCategory == widget.subCategory ||
                                   subCategoryList
                                       .contains(widget.subCategory);
 
-                          final name = (data['name'] ?? '')
-                              .toString()
-                              .toLowerCase();
+                          final name =
+                          (data['name'] ?? '').toString().toLowerCase();
                           final bool matchSearch = _searchQuery.isEmpty ||
                               name.contains(_searchQuery);
 
@@ -260,10 +352,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                               onPressed: () {
                                                 if (isBorrow) {
                                                   Get.to(
-                                                        () =>
-                                                        BorrowApplyScreen(
-                                                          productData: data,
-                                                        ),
+                                                        () => BorrowApplyScreen(
+                                                      productData: data,
+                                                    ),
                                                   );
                                                 } else {
                                                   Get.to(
@@ -274,21 +365,22 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                   );
                                                 }
                                               },
-                                              style: ElevatedButton
-                                                  .styleFrom(
+                                              style:
+                                              ElevatedButton.styleFrom(
                                                 backgroundColor:
-                                                const Color(
-                                                    0xFFFF9800),
+                                                const Color(0xFFFF9800),
                                                 shape:
                                                 RoundedRectangleBorder(
                                                   borderRadius:
-                                                  BorderRadius
-                                                      .circular(10),
+                                                  BorderRadius.circular(
+                                                      10),
                                                 ),
                                               ),
-                                              child: const Text(
-                                                "Details",
-                                                style: TextStyle(
+                                              child: Text(
+                                                isBorrow
+                                                    ? "Borrow Now"
+                                                    : "Shop Now",
+                                                style: const TextStyle(
                                                   color: Colors.white,
                                                   fontWeight:
                                                   FontWeight.bold,
