@@ -19,15 +19,49 @@ class _BorrowScreenState extends State<BorrowScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   /// Static subcategories for BORROW
+  /// key  = translation key (borrow_pharmacy, borrow_engineering, ...)
+  /// name = internal English name used in Firestore / ProductListScreen
   final List<Map<String, String>> _categories = const [
-    {"title": "Pharmacy", "image": "assets/images/buy/buy1.png"},
-    {"title": "Engineering", "image": "assets/images/buy/buy2.png"},
-    {"title": "Fashion Design", "image": "assets/images/buy/buy8.png"},
-    {"title": "Information Technology", "image": "assets/images/buy/buy7.png"},
-    {"title": "Business Studies", "image": "assets/images/buy/buy3.png"},
-    {"title": "Applied Sciences", "image": "assets/images/buy/buy6.png"},
-    {"title": "Photography", "image": "assets/images/buy/buy5.png"},
-    {"title": "English Language", "image": "assets/images/buy/buy4.png"},
+    {
+      "key": "borrow_pharmacy",
+      "name": "Pharmacy",
+      "image": "assets/images/buy/buy1.png",
+    },
+    {
+      "key": "borrow_engineering",
+      "name": "Engineering",
+      "image": "assets/images/buy/buy2.png",
+    },
+    {
+      "key": "borrow_fashion_design",
+      "name": "Fashion Design",
+      "image": "assets/images/buy/buy8.png",
+    },
+    {
+      "key": "borrow_information_technology",
+      "name": "Information Technology",
+      "image": "assets/images/buy/buy7.png",
+    },
+    {
+      "key": "borrow_business_studies",
+      "name": "Business Studies",
+      "image": "assets/images/buy/buy3.png",
+    },
+    {
+      "key": "borrow_applied_sciences",
+      "name": "Applied Sciences",
+      "image": "assets/images/buy/buy6.png",
+    },
+    {
+      "key": "borrow_photography",
+      "name": "Photography",
+      "image": "assets/images/buy/buy5.png",
+    },
+    {
+      "key": "borrow_english_language",
+      "name": "English Language",
+      "image": "assets/images/buy/buy4.png",
+    },
   ];
 
   String _searchQuery = "";
@@ -40,8 +74,18 @@ class _BorrowScreenState extends State<BorrowScreen> {
 
   List<Map<String, String>> get _filtered {
     if (_searchQuery.trim().isEmpty) return _categories;
+
     final q = _searchQuery.toLowerCase();
-    return _categories.where((c) => c["title"]!.toLowerCase().contains(q)).toList();
+
+    return _categories.where((c) {
+      final key = c["key"] ?? "";
+      final internalName = c["name"] ?? "";
+
+      final en = internalName.toLowerCase();   // English
+      final translated = key.tr.toLowerCase(); // Arabic/English (current locale)
+
+      return en.contains(q) || translated.contains(q);
+    }).toList();
   }
 
   @override
@@ -72,7 +116,8 @@ class _BorrowScreenState extends State<BorrowScreen> {
                 children: [
                   // ===== Back + Title =====
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 15.h),
+                    padding:
+                    EdgeInsets.symmetric(horizontal: 16.w, vertical: 15.h),
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
@@ -86,8 +131,10 @@ class _BorrowScreenState extends State<BorrowScreen> {
                         Align(
                           alignment: Alignment.centerLeft,
                           child: GestureDetector(
-                            onTap: () => Get.offAll(() => const HomeScreen()),
-                            child: Icon(Icons.arrow_back_ios, color: titleColor, size: 20.sp),
+                            onTap: () =>
+                                Get.offAll(() => const HomeScreen()),
+                            child: Icon(Icons.arrow_back_ios,
+                                color: titleColor, size: 20.sp),
                           ),
                         ),
                       ],
@@ -102,14 +149,20 @@ class _BorrowScreenState extends State<BorrowScreen> {
                       onChanged: (v) => setState(() => _searchQuery = v),
                       textInputAction: TextInputAction.search,
                       decoration: InputDecoration(
-                        hintText: "Search category...",
-                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                        hintText: "search_category_hint".tr,
+                        hintStyle: TextStyle(
+                          color: isDark ? Colors.grey[400] : Colors.grey,
+                        ),
+                        prefixIcon:
+                        const Icon(Icons.search, color: Colors.grey),
                         filled: true,
                         fillColor: isDark ? Colors.grey[800] : Colors.white,
                         contentPadding: EdgeInsets.symmetric(vertical: 12.h),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12.r),
-                          borderSide: BorderSide(color: isDark ? Colors.grey : Colors.black12),
+                          borderSide: BorderSide(
+                            color: isDark ? Colors.grey : Colors.black12,
+                          ),
                         ),
                       ),
                     ),
@@ -140,10 +193,20 @@ class _BorrowScreenState extends State<BorrowScreen> {
                       child: Padding(
                         padding: EdgeInsets.all(15.w),
                         child: _filtered.isEmpty
-                            ? const Center(child: Text("No matching categories found"))
+                            ? Center(
+                          child: Text(
+                            "no_matching_categories".tr,
+                            style: AppStyles.small1.copyWith(
+                              color: isDark
+                                  ? Colors.white
+                                  : Colors.black54,
+                            ),
+                          ),
+                        )
                             : GridView.builder(
                           itemCount: _filtered.length,
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
                             crossAxisSpacing: 16,
                             mainAxisSpacing: 16,
@@ -151,13 +214,19 @@ class _BorrowScreenState extends State<BorrowScreen> {
                           ),
                           itemBuilder: (context, index) {
                             final item = _filtered[index];
+                            final titleKey = item["key"]!;
+                            final internalName = item["name"]!;
+                            final imagePath = item["image"]!;
+
                             return _gridItem(
-                              imagePath: item["image"]!,
-                              title: item["title"]!,
+                              imagePath: imagePath,
+                              // what user sees (translated)
+                              title: titleKey.tr,
+                              internalName: internalName,
                               onTap: () => Get.to(
                                     () => ProductListScreen(
                                   category: "Borrow",
-                                  subCategory: item["title"]!,
+                                  subCategory: internalName,
                                 ),
                               ),
                               containerBg: containerBg,
@@ -180,7 +249,8 @@ class _BorrowScreenState extends State<BorrowScreen> {
 
   Widget _gridItem({
     required String imagePath,
-    required String title,
+    required String title,        // translated label
+    required String internalName, // kept if you need it later
     required VoidCallback onTap,
     required Color containerBg,
     required Color containerText,
@@ -197,7 +267,11 @@ class _BorrowScreenState extends State<BorrowScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(imagePath, height: 60.h, color: isDark ? Colors.white : null),
+            Image.asset(
+              imagePath,
+              height: 60.h,
+              color: isDark ? Colors.white : null,
+            ),
             SizedBox(height: 10.h),
             Text(
               title,

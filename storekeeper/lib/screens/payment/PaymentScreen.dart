@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../controllers/Theme_Controller.dart';
+import '../../core/app_theme.dart';
 import 'ThankYouScreen.dart';
 
 class PaymentScreen extends StatefulWidget {
@@ -25,6 +27,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final TextEditingController cvvCtrl = TextEditingController();
 
   bool isProcessing = false;
+
+  final ThemeController themeController = Get.find<ThemeController>();
 
   /// ======================
   /// BACK BUTTON POPUP
@@ -61,8 +65,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               Navigator.pop(context, true); // Exit PaymentScreen
             },
-            child: const Text("Cancel Payment",
-                style: TextStyle(color: Colors.red)),
+            child: const Text(
+              "Cancel Payment",
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -171,184 +177,261 @@ class _PaymentScreenState extends State<PaymentScreen> {
   /// ======================
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop, // <<< IMPORTANT
-      child: Scaffold(
-        backgroundColor: const Color(0xFF6A7FD0),
-        body: SafeArea(
-          child: Stack(
-            children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    // ===== Back Button =====
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back, color: Colors.white),
-                          onPressed: () => _onWillPop(),
-                        ),
-                        const Spacer(),
-                        const Text(
-                          "Uni Tools App",
-                          style: TextStyle(
+    return Obx(() {
+      final isDark = themeController.isDarkMode.value;
+
+      final scaffoldBg = isDark ? Colors.black : const Color(0xFF6A7FD0);
+      final cardBg = isDark ? Colors.grey[900]! : Colors.white;
+      final textColor = isDark ? Colors.white : Colors.black;
+      final subTextColor =
+      isDark ? Colors.grey[400]! : Colors.grey.shade700;
+
+      InputBorder _inputBorder(Color color) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: color),
+      );
+
+      return WillPopScope(
+        onWillPop: _onWillPop, // <<< IMPORTANT
+        child: Scaffold(
+          backgroundColor: scaffoldBg,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      // ===== Back Button + Title =====
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white),
+                            onPressed: () => _onWillPop(),
+                          ),
+                          const Spacer(),
+                          const Text(
+                            "Uni Tools App",
+                            style: TextStyle(
                               fontSize: 22,
                               color: Colors.white,
-                              fontWeight: FontWeight.bold),
-                        ),
-                        const Spacer(),
-                        const SizedBox(width: 48),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    Image.asset("assets/images/payment/payment1.png",
-                        height: 120),
-
-                    const SizedBox(height: 20),
-
-                    // ===== White Card Container =====
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(25),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          const SizedBox(width: 48),
+                        ],
                       ),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text("Payment",
-                                style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold)),
 
-                            const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                            TextFormField(
-                              controller: cardNumberCtrl,
-                              keyboardType: TextInputType.number,
-                              maxLength: 16,
-                              decoration: const InputDecoration(
-                                labelText: "Card Number",
-                                counterText: "",
+                      Image.asset(
+                        "assets/images/payment/payment1.png",
+                        height: 120,
+                        color: isDark ? Colors.white : null,
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // ===== Card Container =====
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(25),
+                          boxShadow: [
+                            if (!isDark)
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
                               ),
-                              validator: (v) {
-                                if (v == null || v.length != 16) {
-                                  return "Enter valid 16-digit card number";
-                                }
-                                return null;
-                              },
-                            ),
-
-                            const SizedBox(height: 10),
-
-                            TextFormField(
-                              controller: nameCtrl,
-                              decoration: const InputDecoration(
-                                labelText: "Card Holder Name",
-                              ),
-                              validator: (v) => v == null || v.trim().isEmpty
-                                  ? "Enter cardholder name"
-                                  : null,
-                            ),
-
-                            const SizedBox(height: 10),
-
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: expiryCtrl,
-                                    readOnly: true,
-                                    onTap: _pickExpiryDate,
-                                    decoration: const InputDecoration(
-                                      labelText: "Expiry Date",
-                                      hintText: "MM/YY",
-                                    ),
-                                    validator: (v) =>
-                                    v == null || v.isEmpty
-                                        ? "Select expiry date"
-                                        : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: cvvCtrl,
-                                    obscureText: true,
-                                    keyboardType: TextInputType.number,
-                                    maxLength: 3,
-                                    decoration: const InputDecoration(
-                                      labelText: "CVV",
-                                      counterText: "",
-                                    ),
-                                    validator: (v) =>
-                                    v == null || v.length != 3
-                                        ? "Enter 3-digit CVV"
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            Text(
-                              "Total: ${widget.totalAmount.toStringAsFixed(2)} OMR",
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 18),
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: ElevatedButton(
-                                onPressed: isProcessing ? null : _handlePayment,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                child: isProcessing
-                                    ? const CircularProgressIndicator(
-                                    color: Colors.white)
-                                    : const Text(
-                                  "Pay Now",
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16),
-                                ),
-                              ),
-                            )
                           ],
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Payment",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: textColor,
+                                ),
+                              ),
 
-              // ===== Loading Overlay =====
-              if (isProcessing)
-                Container(
-                  color: Colors.black.withOpacity(0.5),
-                  child: const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
+                              const SizedBox(height: 20),
+
+                              TextFormField(
+                                controller: cardNumberCtrl,
+                                keyboardType: TextInputType.number,
+                                maxLength: 16,
+                                style: TextStyle(color: textColor),
+                                decoration: InputDecoration(
+                                  labelText: "Card Number",
+                                  counterText: "",
+                                  labelStyle:
+                                  TextStyle(color: subTextColor),
+                                  hintStyle:
+                                  TextStyle(color: subTextColor),
+                                  enabledBorder:
+                                  _inputBorder(subTextColor),
+                                  focusedBorder:
+                                  _inputBorder(Colors.orange),
+                                ),
+                                validator: (v) {
+                                  if (v == null || v.length != 16) {
+                                    return "Enter valid 16-digit card number";
+                                  }
+                                  return null;
+                                },
+                              ),
+
+                              const SizedBox(height: 10),
+
+                              TextFormField(
+                                controller: nameCtrl,
+                                style: TextStyle(color: textColor),
+                                decoration: InputDecoration(
+                                  labelText: "Card Holder Name",
+                                  labelStyle:
+                                  TextStyle(color: subTextColor),
+                                  hintStyle:
+                                  TextStyle(color: subTextColor),
+                                  enabledBorder:
+                                  _inputBorder(subTextColor),
+                                  focusedBorder:
+                                  _inputBorder(Colors.orange),
+                                ),
+                                validator: (v) =>
+                                v == null || v.trim().isEmpty
+                                    ? "Enter cardholder name"
+                                    : null,
+                              ),
+
+                              const SizedBox(height: 10),
+
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: expiryCtrl,
+                                      readOnly: true,
+                                      onTap: _pickExpiryDate,
+                                      style: TextStyle(color: textColor),
+                                      decoration: InputDecoration(
+                                        labelText: "Expiry Date",
+                                        hintText: "MM/YY",
+                                        labelStyle: TextStyle(
+                                            color: subTextColor),
+                                        hintStyle: TextStyle(
+                                            color: subTextColor),
+                                        enabledBorder:
+                                        _inputBorder(subTextColor),
+                                        focusedBorder:
+                                        _inputBorder(Colors.orange),
+                                      ),
+                                      validator: (v) =>
+                                      v == null || v.isEmpty
+                                          ? "Select expiry date"
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: cvvCtrl,
+                                      obscureText: true,
+                                      keyboardType: TextInputType.number,
+                                      maxLength: 3,
+                                      style: TextStyle(color: textColor),
+                                      decoration: InputDecoration(
+                                        labelText: "CVV",
+                                        counterText: "",
+                                        labelStyle: TextStyle(
+                                            color: subTextColor),
+                                        hintStyle: TextStyle(
+                                            color: subTextColor),
+                                        enabledBorder:
+                                        _inputBorder(subTextColor),
+                                        focusedBorder:
+                                        _inputBorder(Colors.orange),
+                                      ),
+                                      validator: (v) =>
+                                      v == null || v.length != 3
+                                          ? "Enter 3-digit CVV"
+                                          : null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 20),
+
+                              Text(
+                                "Total: ${widget.totalAmount.toStringAsFixed(2)} OMR",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: textColor,
+                                ),
+                              ),
+
+                              const SizedBox(height: 20),
+
+                              SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: ElevatedButton(
+                                  onPressed:
+                                  isProcessing ? null : _handlePayment,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.orange,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                      BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  child: isProcessing
+                                      ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                      : const Text(
+                                    "Pay Now",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                )
-            ],
+                ),
+
+                // ===== Loading Overlay =====
+                if (isProcessing)
+                  Container(
+                    color: Colors.black.withOpacity(0.5),
+                    child: const Center(
+                      child:
+                      CircularProgressIndicator(color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 }

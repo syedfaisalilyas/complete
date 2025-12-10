@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:overlay_support/overlay_support.dart';
 
+import '../../../controllers/Theme_Controller.dart';
+import '../../../core/app_theme.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/tracking_service.dart';
 import '../../signUp/notification_widget.dart';
@@ -22,7 +24,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   String selectedCapacity = '32GB';
   String selectedColor = 'Red';
 
-  // ---------- Rating + Feedback ----------
   double userRating = 0;
   bool _loadingUserRating = false;
   final TextEditingController feedbackCtrl = TextEditingController();
@@ -33,6 +34,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final data = widget.productData;
     final productId =
         data['id']?.toString() ?? data['name']?.toString() ?? '';
+
     TrackingService.trackUserActivity(
       productId: productId,
       category: data["category"] ?? "",
@@ -153,7 +155,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  // Average rating from ratings subcollection
   Widget _averageRatingWidget(String productId) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -204,8 +205,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  // Feedback list
-  Widget _feedbackList(String productId) {
+  Widget _feedbackList(String productId, bool isDark) {
+    final bubbleColor =
+    isDark ? Colors.grey[850]! : Colors.grey.shade100;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final timeColor = isDark ? Colors.grey[400]! : Colors.grey;
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection("products")
@@ -220,9 +225,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
         final docs = snapshot.data!.docs;
         if (docs.isEmpty) {
-          return const Text(
+          return Text(
             "No feedback yet.",
-            style: TextStyle(color: Colors.grey, fontSize: 13),
+            style: TextStyle(color: timeColor, fontSize: 13),
           );
         }
 
@@ -237,14 +242,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             String timeLabel = "Just now";
             if (ts != null) {
               final dt = ts.toDate();
-              timeLabel = dt.toString().substring(0, 16); // yyyy-mm-dd hh:mm
+              timeLabel = dt.toString().substring(0, 16);
             }
 
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: bubbleColor,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(
@@ -252,17 +257,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 children: [
                   Text(
                     text,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Colors.black87,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     timeLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey,
+                      color: timeColor,
                     ),
                   ),
                 ],
@@ -274,11 +279,31 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
+  Widget _qtyButton(IconData icon, VoidCallback onTap, bool isDark) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 35,
+        height: 35,
+        decoration: BoxDecoration(
+          color: isDark ? Colors.grey[800] : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: isDark ? Colors.white : Colors.black,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final themeController = Get.find<ThemeController>();
+
     final data = widget.productData;
 
-    // IMPORTANT: use id if exists, else fallback to name
     final productId =
         data['id']?.toString() ?? data['name']?.toString() ?? '';
 
@@ -291,435 +316,475 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final category = data['category'] ?? '';
     final subcategory = data['subcategory'] ?? '';
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ===== Top Image Section =====
-            Stack(
-              children: [
-                Container(
-                  width: double.infinity,
-                  color: const Color(0xFF6A7FD0),
-                  child: Column(
-                    children: [
-                      // Top Bar
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            GestureDetector(
-                              onTap: () => Get.back(),
-                              child: const Icon(
-                                Icons.arrow_back_ios,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const Spacer(),
-                          ],
-                        ),
-                      ),
-                      // Product Image
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: imageUrl.isNotEmpty
-                            ? Image.network(
-                          imageUrl,
-                          height: 180,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Image.asset(
-                              'assets/images/order/order.png',
-                              height: 180,
-                              fit: BoxFit.contain,
-                            );
-                          },
-                        )
-                            : Image.asset(
-                          'assets/images/order/order.png',
-                          height: 180,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    return Obx(() {
+      final isDark = themeController.isDarkMode.value;
 
-            // ===== Bottom White Container =====
-            Expanded(
-              child: Container(
+      final scaffoldBg = isDark ? Colors.black : Colors.white;
+      final topDecoration = isDark
+          ? const BoxDecoration(color: Colors.black)
+          : const BoxDecoration(gradient: AppTheme.background);
+      final bottomBg = isDark ? Colors.grey[900]! : Colors.white;
+      final mainTextColor = isDark ? Colors.white : Colors.black;
+      final secondaryTextColor =
+      isDark ? Colors.grey[400]! : Colors.black54;
+      final smallTextColor =
+      isDark ? Colors.grey[400]! : Colors.grey;
+
+      return Scaffold(
+        backgroundColor: scaffoldBg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // ===== Top Image Section =====
+              Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(40),
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Product Title
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-
-                      // ⭐ Average rating (dynamic)
-                      if (productId.isNotEmpty) _averageRatingWidget(productId),
-
-                      const SizedBox(height: 10),
-
-                      // Description
-                      Text(
-                        description,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-
-                      if (condition.isNotEmpty || category.isNotEmpty)
-                        Text(
-                          "Condition: $condition | Category: $category | Sub: $subcategory",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      const SizedBox(height: 20),
-
-                      // Price
-                      Text(
-                        "Price: $price OMR",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        "Available Stock: $stock",
-                        style:
-                        const TextStyle(fontSize: 13, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Quantity Selector
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
+                decoration: topDecoration,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      child: Row(
+                        mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
                         children: [
-                          _qtyButton(Icons.remove, () {
-                            if (quantity > 1) {
-                              setState(() => quantity--);
-                            }
-                          }),
-                          Container(
-                            width: 40,
-                            alignment: Alignment.center,
-                            child: Text(
-                              quantity.toString(),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          GestureDetector(
+                            onTap: () => Get.back(),
+                            child: const Icon(
+                              Icons.arrow_back_ios,
+                              color: Colors.white,
                             ),
                           ),
-                          _qtyButton(Icons.add, () {
-                            int stockQty = int.tryParse(stock) ?? 0;
-                            if (quantity < stockQty) {
-                              setState(() => quantity++);
-                            } else {
-                              Get.snackbar(
-                                "Stock Limit",
-                                "Only $stockQty items available in stock.",
-                                backgroundColor: Colors.red,
-                                colorText: Colors.white,
-                              );
-                            }
-                          }),
+                          const Spacer(),
                         ],
                       ),
+                    ),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: imageUrl.isNotEmpty
+                          ? Image.network(
+                        imageUrl,
+                        height: 180,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Image.asset(
+                            'assets/images/order/order.png',
+                            height: 180,
+                            fit: BoxFit.contain,
+                          );
+                        },
+                      )
+                          : Image.asset(
+                        'assets/images/order/order.png',
+                        height: 180,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ),
+              ),
 
-                      const SizedBox(height: 30),
+              // ===== Bottom Container =====
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: bottomBg,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(40),
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: mainTextColor,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
 
-                      // Add to Cart Button (now with dialog on success)
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user == null) {
-                              Get.snackbar(
-                                "Not Logged In",
-                                "Please sign in first to add items to cart.",
-                                backgroundColor: Colors.red,
-                                colorText: Colors.white,
-                              );
-                              return;
-                            }
+                        if (productId.isNotEmpty)
+                          _averageRatingWidget(productId),
 
-                            final userId = user.uid;
-                            final stockQty = int.tryParse(stock) ?? 0;
+                        const SizedBox(height: 10),
 
-                            if (stockQty <= 0) {
-                              Get.snackbar(
-                                "Out of Stock",
-                                "This item is currently unavailable.",
-                                backgroundColor: Colors.red,
-                                colorText: Colors.white,
-                              );
-                              return;
-                            }
+                        Text(
+                          description,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: secondaryTextColor,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
 
-                            if (quantity > stockQty) {
-                              Get.snackbar(
-                                "Stock Limit",
-                                "Only $stockQty items available in stock.",
-                                backgroundColor: Colors.red,
-                                colorText: Colors.white,
-                              );
-                              return;
-                            }
+                        if (condition.isNotEmpty ||
+                            category.isNotEmpty)
+                          Text(
+                            "Condition: $condition | Category: $category | Sub: $subcategory",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: smallTextColor,
+                            ),
+                          ),
+                        const SizedBox(height: 20),
 
-                            final cartRef = FirebaseFirestore.instance
-                                .collection('cart')
-                                .doc(userId)
-                                .collection('items')
-                                .doc(productId.isNotEmpty ? productId : name);
+                        Text(
+                          "Price: $price OMR",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: mainTextColor,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          "Available Stock: $stock",
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: smallTextColor,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
 
-                            final doc = await cartRef.get();
-
-                            // UPDATE quantity if exists
-                            if (doc.exists) {
-                              final currentQty = doc['quantity'] ?? 1;
-                              final newQty = currentQty + quantity;
-
-                              if (newQty > stockQty) {
+                        Row(
+                          mainAxisAlignment:
+                          MainAxisAlignment.start,
+                          children: [
+                            _qtyButton(Icons.remove, () {
+                              if (quantity > 1) {
+                                setState(() => quantity--);
+                              }
+                            }, isDark),
+                            Container(
+                              width: 40,
+                              alignment: Alignment.center,
+                              child: Text(
+                                quantity.toString(),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: mainTextColor,
+                                ),
+                              ),
+                            ),
+                            _qtyButton(Icons.add, () {
+                              int stockQty =
+                                  int.tryParse(stock) ?? 0;
+                              if (quantity < stockQty) {
+                                setState(() => quantity++);
+                              } else {
                                 Get.snackbar(
                                   "Stock Limit",
-                                  "You can only have $stockQty of this item in your cart.",
+                                  "Only $stockQty items available in stock.",
+                                  backgroundColor: Colors.red,
+                                  colorText: Colors.white,
+                                );
+                              }
+                            }, isDark),
+                          ],
+                        ),
+
+                        const SizedBox(height: 30),
+
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final user = FirebaseAuth
+                                  .instance.currentUser;
+                              if (user == null) {
+                                Get.snackbar(
+                                  "Not Logged In",
+                                  "Please sign in first to add items to cart.",
                                   backgroundColor: Colors.red,
                                   colorText: Colors.white,
                                 );
                                 return;
                               }
 
-                              await cartRef.update({
-                                'quantity': newQty,
-                                'updatedAt': FieldValue.serverTimestamp(),
-                              });
-                            } else {
-                              // ADD new item
-                              await cartRef.set({
-                                'name': name,
-                                'price': price,
-                                'imageUrl': imageUrl,
-                                'quantity': quantity,
-                                'category': category,
-                                'subcategory': subcategory,
-                                'selectedCapacity': selectedCapacity,
-                                'selectedColor': selectedColor,
-                                'addedAt': FieldValue.serverTimestamp(),
-                              });
-                            }
-                            TrackingService.trackUserActivity(
-                              productId: productId,
-                              category: category,
-                              name: name,
-                              addedToCart: true,
-                            );
+                              final userId = user.uid;
+                              final stockQty =
+                                  int.tryParse(stock) ?? 0;
 
-                            // ================================
-                            // 🔔 SEND IN-APP NOTIFICATION HERE
-                            // ================================
-                            showOverlayNotification(
-                                  (context) => buildSuccessNotification("Added to cart", "$name added successfully!"),
-                              duration: Duration(seconds: 3),
-                            );
-
-
-                            // Show success dialog
-                            if (!mounted) return;
-                            showDialog(
-                              context: context,
-                              builder: (ctx) {
-                                return AlertDialog(
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  title: const Text(
-                                    "Added to Cart",
-                                    style: TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  content: Text("$name has been added to your cart."),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.of(ctx).pop(),
-                                      child: const Text("OK"),
-                                    ),
-                                  ],
+                              if (stockQty <= 0) {
+                                Get.snackbar(
+                                  "Out of Stock",
+                                  "This item is currently unavailable.",
+                                  backgroundColor: Colors.red,
+                                  colorText: Colors.white,
                                 );
-                              },
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF9800),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text(
-                            "Add to cart",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
+                                return;
+                              }
 
-                      const SizedBox(height: 30),
+                              if (quantity > stockQty) {
+                                Get.snackbar(
+                                  "Stock Limit",
+                                  "Only $stockQty items available in stock.",
+                                  backgroundColor: Colors.red,
+                                  colorText: Colors.white,
+                                );
+                                return;
+                              }
 
-                      // --------- Rating Section (ONE rating per user) ---------
-                      if (productId.isNotEmpty) ...[
-                        const Divider(),
-                        const Text(
-                          "Your Rating",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (_loadingUserRating)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
-                            child: LinearProgressIndicator(),
-                          )
-                        else
-                          Row(
-                            children: List.generate(
-                              5,
-                                  (index) => IconButton(
-                                onPressed: () {
-                                  setState(() {
-                                    userRating = (index + 1).toDouble();
-                                  });
+                              final cartRef = FirebaseFirestore
+                                  .instance
+                                  .collection('cart')
+                                  .doc(userId)
+                                  .collection('items')
+                                  .doc(productId.isNotEmpty
+                                  ? productId
+                                  : name);
+
+                              final doc = await cartRef.get();
+
+                              if (doc.exists) {
+                                final currentQty =
+                                    doc['quantity'] ?? 1;
+                                final newQty =
+                                    currentQty + quantity;
+
+                                if (newQty > stockQty) {
+                                  Get.snackbar(
+                                    "Stock Limit",
+                                    "You can only have $stockQty of this item in your cart.",
+                                    backgroundColor: Colors.red,
+                                    colorText: Colors.white,
+                                  );
+                                  return;
+                                }
+
+                                await cartRef.update({
+                                  'quantity': newQty,
+                                  'updatedAt':
+                                  FieldValue.serverTimestamp(),
+                                });
+                              } else {
+                                await cartRef.set({
+                                  'name': name,
+                                  'price': price,
+                                  'imageUrl': imageUrl,
+                                  'quantity': quantity,
+                                  'category': category,
+                                  'subcategory': subcategory,
+                                  'selectedCapacity':
+                                  selectedCapacity,
+                                  'selectedColor': selectedColor,
+                                  'addedAt':
+                                  FieldValue.serverTimestamp(),
+                                });
+                              }
+
+                              TrackingService
+                                  .trackUserActivity(
+                                productId: productId,
+                                category: category,
+                                name: name,
+                                addedToCart: true,
+                              );
+
+                              showOverlayNotification(
+                                    (context) =>
+                                    buildSuccessNotification(
+                                      "Added to cart",
+                                      "$name added successfully!",
+                                    ),
+                                duration:
+                                const Duration(seconds: 3),
+                              );
+
+                              if (!mounted) return;
+                              showDialog(
+                                context: context,
+                                builder: (ctx) {
+                                  return AlertDialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                      BorderRadius.circular(
+                                          16),
+                                    ),
+                                    title: const Text(
+                                      "Added to Cart",
+                                      style: TextStyle(
+                                          fontWeight:
+                                          FontWeight.bold),
+                                    ),
+                                    content: Text(
+                                        "$name has been added to your cart."),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(ctx)
+                                                .pop(),
+                                        child: const Text("OK"),
+                                      ),
+                                    ],
+                                  );
                                 },
-                                icon: Icon(
-                                  index < userRating
-                                      ? Icons.star
-                                      : Icons.star_border,
-                                  color: Colors.amber,
-                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                              const Color(0xFFFF9800),
+                              shape: RoundedRectangleBorder(
+                                borderRadius:
+                                BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              "Add to cart",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight:
+                                FontWeight.bold,
+                                fontSize: 16,
                               ),
                             ),
                           ),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: ElevatedButton(
-                            onPressed: () => _submitRating(productId),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blueAccent,
-                              padding:
-                              const EdgeInsets.symmetric(horizontal: 20),
-                            ),
-                            child: const Text(
-                              "Save Rating",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
                         ),
-                        const SizedBox(height: 20),
 
-                        // --------- Feedback (MULTIPLE per user) ---------
-                        const Text(
-                          "Write Feedback",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: feedbackCtrl,
-                          maxLines: 3,
-                          decoration: InputDecoration(
-                            hintText: "Write your feedback about this product...",
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: ElevatedButton(
-                            onPressed: () => _submitFeedback(productId),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              padding:
-                              const EdgeInsets.symmetric(horizontal: 20),
-                            ),
-                            child: const Text(
-                              "Submit Feedback",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 30),
 
-                        const Text(
-                          "Students' Feedback",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        if (productId.isNotEmpty) ...[
+                          const Divider(),
+                          Text(
+                            "Your Rating",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: mainTextColor,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        _feedbackList(productId),
+                          const SizedBox(height: 8),
+                          if (_loadingUserRating)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(
+                                  vertical: 8),
+                              child: LinearProgressIndicator(),
+                            )
+                          else
+                            Row(
+                              children: List.generate(
+                                5,
+                                    (index) => IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      userRating =
+                                          (index + 1).toDouble();
+                                    });
+                                  },
+                                  icon: Icon(
+                                    index < userRating
+                                        ? Icons.star
+                                        : Icons.star_border,
+                                    color: Colors.amber,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ElevatedButton(
+                              onPressed: () =>
+                                  _submitRating(productId),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blueAccent,
+                                padding:
+                                const EdgeInsets.symmetric(
+                                    horizontal: 20),
+                              ),
+                              child: const Text(
+                                "Save Rating",
+                                style: TextStyle(
+                                    color: Colors.white),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          Text(
+                            "Write Feedback",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: mainTextColor,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: feedbackCtrl,
+                            maxLines: 3,
+                            decoration: InputDecoration(
+                              hintText:
+                              "Write your feedback about this product...",
+                              hintStyle: TextStyle(
+                                  color: smallTextColor),
+                              filled: true,
+                              fillColor: isDark
+                                  ? Colors.grey[850]
+                                  : Colors.grey[100],
+                              border: OutlineInputBorder(
+                                borderRadius:
+                                BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                  color: isDark
+                                      ? Colors.grey[700]!
+                                      : Colors.grey[300]!,
+                                ),
+                              ),
+                            ),
+                            style: TextStyle(color: mainTextColor),
+                          ),
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: ElevatedButton(
+                              onPressed: () =>
+                                  _submitFeedback(productId),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                padding:
+                                const EdgeInsets.symmetric(
+                                    horizontal: 20),
+                              ),
+                              child: const Text(
+                                "Submit Feedback",
+                                style: TextStyle(
+                                    color: Colors.white),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          Text(
+                            "Students' Feedback",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: mainTextColor,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _feedbackList(productId, isDark),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  // ===== Quantity Button Widget =====
-  Widget _qtyButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 35,
-        height: 35,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, size: 20, color: Colors.black),
-      ),
-    );
+      );
+    });
   }
 }

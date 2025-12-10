@@ -578,16 +578,25 @@ class _PurchaseTab extends StatelessWidget {
 /// ==============================
 /// ORDER DETAIL SCREEN (Beautiful)
 /// ==============================
+// ------------------- ORDER DETAIL SCREEN (UPDATED WITH RATING) -------------------
+
+
+
+// ------------------- ORDER DETAIL SCREEN (UPDATED WITH DARK MODE + RATING) -------------------
+
 class OrderDetailScreen extends StatelessWidget {
   final Map<String, dynamic> data;
   final String type; // "buy" or "borrow"
+  final String? docIdFromList; // Firestore document ID (sent from list screen)
 
   const OrderDetailScreen({
     super.key,
     required this.data,
     required this.type,
+    this.docIdFromList,
   });
 
+  // FORMATTERS
   String formatPrice(dynamic value) {
     try {
       return (num.tryParse(value.toString()) ?? 0).toStringAsFixed(2);
@@ -630,6 +639,7 @@ class OrderDetailScreen extends StatelessWidget {
     }
   }
 
+  // SAFE IMAGE
   Widget buildSafeImage(String? img) {
     if (img == null || img.isEmpty) {
       return Container(
@@ -689,175 +699,412 @@ class OrderDetailScreen extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isBorrow = type == "borrow";
-    final status = data["status"] ?? (isBorrow ? "Pending" : "Pending");
-    final items = (data["items"] ?? []) as List;
+  // ---------------- RATING POPUP ------------------
+  void _openRatingPopup(BuildContext context, String docId, String collection) {
+    double selectedRating = 0;
+    final TextEditingController feedbackCtrl = TextEditingController();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isBorrow ? "Borrow Order Details" : "Purchase Details"),
-        backgroundColor: const Color(0xFF6A7FD0),
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16.w),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // IMAGE
-            if (isBorrow)
-              buildSafeImage(data["image"])
-            else if (items.isNotEmpty)
-              buildSafeImage(items[0]["imageUrl"])
-            else
-              buildSafeImage(null),
-
-            SizedBox(height: 16.h),
-
-            // TITLE + STATUS CHIP
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    showDialog(
+      context: context,
+      builder: (_) {
+        final isDark =
+            Theme.of(context).brightness == Brightness.dark; // auto adapt
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            backgroundColor:
+            isDark ? Colors.grey[900] : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              "Rate Your Order",
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Text(
-                    isBorrow
-                        ? (data["itemName"] ?? "Borrowed Item")
-                        : "Order #${data["orderId"] ?? ""}",
-                    style: AppStyles.large
-                        .copyWith(fontWeight: FontWeight.bold),
-                  ),
+                // ⭐ Stars
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (i) {
+                    return IconButton(
+                      icon: Icon(
+                        Icons.star,
+                        color:
+                        i < selectedRating ? Colors.orange : Colors.grey,
+                        size: 32,
+                      ),
+                      onPressed: () {
+                        setState(() => selectedRating = i + 1);
+                      },
+                    );
+                  }),
                 ),
-                Container(
-                  padding:
-                  EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-                  decoration: BoxDecoration(
-                    color: statusColor(status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20.r),
+
+                const SizedBox(height: 10),
+
+                TextField(
+                  controller: feedbackCtrl,
+                  maxLines: 3,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black,
                   ),
-                  child: Text(
-                    status,
-                    style: AppStyles.small1.copyWith(
-                      color: statusColor(status),
-                      fontWeight: FontWeight.bold,
+                  decoration: InputDecoration(
+                    hintText: "Write feedback...",
+                    hintStyle: TextStyle(
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    ),
+                    filled: true,
+                    fillColor:
+                    isDark ? Colors.grey[850] : Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
               ],
             ),
 
-            SizedBox(height: 20.h),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  "Cancel",
+                  style: TextStyle(
+                    color: isDark ? Colors.grey[300] : Colors.black,
+                  ),
+                ),
+              ),
 
-            // INFO CARD
-            Container(
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                ),
+                onPressed: () async {
+                  if (selectedRating == 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text("Please select a rating")),
+                    );
+                    return;
+                  }
+
+                  await FirebaseFirestore.instance
+                      .collection(collection)
+                      .doc(docId)
+                      .set({
+                    "ratingData": {
+                      "rating": selectedRating,
+                      "feedback": feedbackCtrl.text,
+                      "userId":
+                      FirebaseAuth.instance.currentUser!.uid,
+                      "createdAt": Timestamp.now(),
+                    }
+                  }, SetOptions(merge: true));
+
+                  Navigator.pop(context);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: Colors.green,
+                      content:
+                      Text("Thank you! Your feedback is submitted."),
+                    ),
+                  );
+                },
+                child: const Text(
+                  "Submit",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeController = Get.find<ThemeController>();
+    final isBorrow = type == "borrow";
+    final status = data["status"] ?? (isBorrow ? "Pending" : "Pending");
+    final items = (data["items"] ?? []) as List;
+
+    // ---------------- FIRESTORE DOC ID SELECTION ----------------
+    final collectionName = isBorrow ? "borrow_requests" : "orders";
+    final autoId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    final resolvedDocId =
+        data["orderId"] ?? data["itemId"] ?? docIdFromList ?? autoId;
+
+    return Obx(() {
+      final isDark = themeController.isDarkMode.value;
+      final scaffoldBg = isDark ? Colors.black : const Color(0xFFF9FAFB);
+      final textColor = isDark ? Colors.white : Colors.black;
+      final cardBg = isDark ? Colors.grey[850]! : Colors.white;
+      final innerBg = isDark ? Colors.grey[900]! : Colors.white;
+      final labelColor =
+      isDark ? Colors.grey[400]! : Colors.grey.shade600;
+      final shadowColor = isDark
+          ? Colors.black.withOpacity(0.6)
+          : Colors.black.withOpacity(0.05);
+
+      return Scaffold(
+        backgroundColor: scaffoldBg,
+        appBar: AppBar(
+          backgroundColor:
+          isDark ? Colors.black : const Color(0xFF6A7FD0),
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+          title: Text(
+            isBorrow ? "Borrow Order Details" : "Purchase Details",
+            style: AppStyles.medium1.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        body: Container(
+          decoration: isDark
+              ? const BoxDecoration(color: Colors.black)
+              : const BoxDecoration(gradient: AppTheme.background),
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(16.w),
+            child: Container(
               width: double.infinity,
               padding: EdgeInsets.all(14.w),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18.r),
+                color: innerBg,
+                borderRadius: BorderRadius.circular(24.r),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: shadowColor,
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (isBorrow) ...[
-                    _infoRow("Borrow Date", data["borrowDate"]),
-                    _infoRow("Return Date", data["returnDate"]),
-                    _infoRow(
-                        "Deposit", "${formatPrice(data["deposit"])} OMR"),
-                    _infoRow("Price", "${formatPrice(data["price"])} OMR"),
-                    _infoRow("Item ID", data["itemId"]),
-                    _infoRow("User Email", data["userEmail"]),
-                  ] else ...[
-                    _infoRow("Order ID", data["orderId"]),
-                    _infoRow(
-                        "Total Amount",
-                        "${formatPrice(data["totalAmount"])} OMR"),
-                    _infoRow("Payment Method", data["paymentMethod"]),
-                    _infoRow("Card Number", data["cardNumber"]),
-                    _infoRow("Card Holder", data["cardName"]),
-                    _infoRow(
-                      "Created At",
-                      formatDate(data["timestamp"]),
+                  // IMAGE
+                  if (isBorrow)
+                    buildSafeImage(data["image"])
+                  else if (items.isNotEmpty)
+                    buildSafeImage(items[0]["imageUrl"])
+                  else
+                    buildSafeImage(null),
+
+                  SizedBox(height: 16.h),
+
+                  // TITLE + STATUS
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          isBorrow
+                              ? (data["itemName"] ?? "Borrowed Item")
+                              : "Order #${data["orderId"] ?? resolvedDocId}",
+                          style: AppStyles.large.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 10.w, vertical: 6.h),
+                        decoration: BoxDecoration(
+                          color: statusColor(status).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20.r),
+                        ),
+                        child: Text(
+                          status,
+                          style: AppStyles.small1.copyWith(
+                            color: statusColor(status),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 20.h),
+
+                  // INFO CARD
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(14.w),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(18.r),
+                      boxShadow: [
+                        BoxShadow(
+                          color: shadowColor,
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isBorrow) ...[
+                          _infoRow("Borrow Date", data["borrowDate"],
+                              labelColor, textColor),
+                          _infoRow("Return Date", data["returnDate"],
+                              labelColor, textColor),
+                          _infoRow(
+                              "Deposit",
+                              "${formatPrice(data["deposit"])} OMR",
+                              labelColor,
+                              textColor),
+                          _infoRow(
+                              "Price",
+                              "${formatPrice(data["price"])} OMR",
+                              labelColor,
+                              textColor),
+                          _infoRow("Item ID", data["itemId"],
+                              labelColor, textColor),
+                          _infoRow("User Email", data["userEmail"],
+                              labelColor, textColor),
+                        ] else ...[
+                          _infoRow(
+                              "Order ID",
+                              data["orderId"] ?? resolvedDocId,
+                              labelColor,
+                              textColor),
+                          _infoRow(
+                              "Total Amount",
+                              "${formatPrice(data["totalAmount"])} OMR",
+                              labelColor,
+                              textColor),
+                          _infoRow("Payment Method",
+                              data["paymentMethod"], labelColor, textColor),
+                          _infoRow("Card Number", data["cardNumber"],
+                              labelColor, textColor),
+                          _infoRow("Card Holder", data["cardName"],
+                              labelColor, textColor),
+                          _infoRow("Created At",
+                              formatDate(data["timestamp"]),
+                              labelColor,
+                              textColor),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  if (!isBorrow) ...[
+                    SizedBox(height: 20.h),
+                    Text(
+                      "Items",
+                      style: AppStyles.medium1.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    ...items.map((item) {
+                      return Container(
+                        margin: EdgeInsets.only(bottom: 10.h),
+                        padding: EdgeInsets.all(12.w),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(14.r),
+                          boxShadow: [
+                            BoxShadow(
+                              color: shadowColor,
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item["name"] ?? "Item",
+                              style: AppStyles.medium.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                              ),
+                            ),
+                            SizedBox(height: 4.h),
+                            Text(
+                              "Qty: ${item["quantity"]}",
+                              style: AppStyles.small1
+                                  .copyWith(color: textColor),
+                            ),
+                            Text(
+                              "Category: ${item["category"]}",
+                              style: AppStyles.small1
+                                  .copyWith(color: textColor),
+                            ),
+                            Text(
+                              "Subcategory: ${item["subcategory"]}",
+                              style: AppStyles.small1
+                                  .copyWith(color: textColor),
+                            ),
+                            SizedBox(height: 4.h),
+                            Text(
+                              "Price: ${formatPrice(item["price"])} OMR",
+                              style: AppStyles.small1.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
                   ],
+
+                  SizedBox(height: 30.h),
+
+                  // ⭐ RATING BUTTON
+                  Center(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 22, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => _openRatingPopup(
+                          context, resolvedDocId, collectionName),
+                      child: const Text(
+                        "Give Rating & Feedback",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: 20.h),
                 ],
               ),
             ),
-
-            if (!isBorrow) ...[
-              SizedBox(height: 20.h),
-              Text(
-                "Items",
-                style:
-                AppStyles.medium1.copyWith(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8.h),
-              ...items.map((item) {
-                return Container(
-                  margin: EdgeInsets.only(bottom: 10.h),
-                  padding: EdgeInsets.all(12.w),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14.r),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item["name"] ?? "Item",
-                        style: AppStyles.medium.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 4.h),
-                      Text(
-                        "Qty: ${item["quantity"]}",
-                        style: AppStyles.small1,
-                      ),
-                      Text(
-                        "Category: ${item["category"]}",
-                        style: AppStyles.small1,
-                      ),
-                      Text(
-                        "Subcategory: ${item["subcategory"]}",
-                        style: AppStyles.small1,
-                      ),
-                      SizedBox(height: 4.h),
-                      Text(
-                        "Price: ${formatPrice(item["price"])} OMR",
-                        style: AppStyles.small1.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ],
-
-            SizedBox(height: 24.h),
-          ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 
-  Widget _infoRow(String label, dynamic value) {
+  Widget _infoRow(
+      String label,
+      dynamic value,
+      Color labelColor,
+      Color valueColor,
+      ) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 4.h),
       child: Row(
@@ -867,7 +1114,7 @@ class OrderDetailScreen extends StatelessWidget {
             child: Text(
               label,
               style: AppStyles.small1.copyWith(
-                color: Colors.grey.shade600,
+                color: labelColor,
               ),
             ),
           ),
@@ -877,6 +1124,7 @@ class OrderDetailScreen extends StatelessWidget {
               value?.toString() ?? "--",
               style: AppStyles.small1.copyWith(
                 fontWeight: FontWeight.bold,
+                color: valueColor,
               ),
             ),
           ),

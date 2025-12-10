@@ -19,15 +19,49 @@ class _BuyScreenState extends State<BuyScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   /// Static subcategories for BUY
+  /// key  = translation key (pharmacy, engineering, ...)
+  /// name = internal English name (what you use in Firestore)
   final List<Map<String, String>> _categories = const [
-    {"title": "Pharmacy", "image": "assets/images/buy/buy1.png"},
-    {"title": "Engineering", "image": "assets/images/buy/buy2.png"},
-    {"title": "Fashion Design", "image": "assets/images/buy/buy8.png"},
-    {"title": "Information Technology", "image": "assets/images/buy/buy7.png"},
-    {"title": "Business Studies", "image": "assets/images/buy/buy3.png"},
-    {"title": "Applied Sciences", "image": "assets/images/buy/buy6.png"},
-    {"title": "Photography", "image": "assets/images/buy/buy5.png"},
-    {"title": "English Language", "image": "assets/images/buy/buy4.png"},
+    {
+      "key": "pharmacy",
+      "name": "Pharmacy",
+      "image": "assets/images/buy/buy1.png",
+    },
+    {
+      "key": "engineering",
+      "name": "Engineering",
+      "image": "assets/images/buy/buy2.png",
+    },
+    {
+      "key": "fashion_design",
+      "name": "Fashion Design",
+      "image": "assets/images/buy/buy8.png",
+    },
+    {
+      "key": "information_technology",
+      "name": "Information Technology",
+      "image": "assets/images/buy/buy7.png",
+    },
+    {
+      "key": "business_studies",
+      "name": "Business Studies",
+      "image": "assets/images/buy/buy3.png",
+    },
+    {
+      "key": "applied_sciences",
+      "name": "Applied Sciences",
+      "image": "assets/images/buy/buy6.png",
+    },
+    {
+      "key": "photography",
+      "name": "Photography",
+      "image": "assets/images/buy/buy5.png",
+    },
+    {
+      "key": "english_language",
+      "name": "English Language",
+      "image": "assets/images/buy/buy4.png",
+    },
   ];
 
   String _searchQuery = "";
@@ -40,10 +74,21 @@ class _BuyScreenState extends State<BuyScreen> {
 
   List<Map<String, String>> get _filtered {
     if (_searchQuery.trim().isEmpty) return _categories;
+
     final q = _searchQuery.toLowerCase();
-    return _categories.where((c) => c["title"]!.toLowerCase().contains(q)).toList();
-    // NOTE: If you later want to search Firestore for products directly,
-    // you’ll do it inside ProductListScreen using a where/arrayContains, etc.
+
+    return _categories.where((c) {
+      final key = c["key"] ?? "";
+      final internalName = c["name"] ?? "";
+
+      // English name
+      final en = internalName.toLowerCase();
+
+      // Translated text (Arabic or English based on current locale)
+      final translated = key.tr.toLowerCase();
+
+      return en.contains(q) || translated.contains(q);
+    }).toList();
   }
 
   @override
@@ -74,7 +119,8 @@ class _BuyScreenState extends State<BuyScreen> {
                 children: [
                   // ===== Back + Title =====
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 15.h),
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 16.w, vertical: 15.h),
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
@@ -88,8 +134,10 @@ class _BuyScreenState extends State<BuyScreen> {
                         Align(
                           alignment: Alignment.centerLeft,
                           child: GestureDetector(
-                            onTap: () => Get.offAll(() => const HomeScreen()),
-                            child: Icon(Icons.arrow_back_ios, color: titleColor, size: 20.sp),
+                            onTap: () =>
+                                Get.offAll(() => const HomeScreen()),
+                            child: Icon(Icons.arrow_back_ios,
+                                color: titleColor, size: 20.sp),
                           ),
                         ),
                       ],
@@ -104,14 +152,20 @@ class _BuyScreenState extends State<BuyScreen> {
                       onChanged: (v) => setState(() => _searchQuery = v),
                       textInputAction: TextInputAction.search,
                       decoration: InputDecoration(
-                        hintText: "Search category...",
+                        hintText: "search_category_hint".tr,
+                        hintStyle: TextStyle(
+                          color: isDark ? Colors.grey[400] : Colors.grey,
+                        ),
                         prefixIcon: const Icon(Icons.search, color: Colors.grey),
                         filled: true,
                         fillColor: isDark ? Colors.grey[800] : Colors.white,
                         contentPadding: EdgeInsets.symmetric(vertical: 12.h),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12.r),
-                          borderSide: BorderSide(color: isDark ? Colors.grey : Colors.black12),
+                          borderSide: BorderSide(
+                              color: isDark
+                                  ? Colors.grey
+                                  : Colors.black12),
                         ),
                       ),
                     ),
@@ -142,10 +196,20 @@ class _BuyScreenState extends State<BuyScreen> {
                       child: Padding(
                         padding: EdgeInsets.all(15.w),
                         child: _filtered.isEmpty
-                            ? const Center(child: Text("No matching categories found"))
+                            ? Center(
+                          child: Text(
+                            "no_matching_categories".tr,
+                            style: AppStyles.small1.copyWith(
+                              color: isDark
+                                  ? Colors.white
+                                  : Colors.black54,
+                            ),
+                          ),
+                        )
                             : GridView.builder(
                           itemCount: _filtered.length,
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
                             crossAxisSpacing: 16,
                             mainAxisSpacing: 16,
@@ -153,13 +217,20 @@ class _BuyScreenState extends State<BuyScreen> {
                           ),
                           itemBuilder: (context, index) {
                             final item = _filtered[index];
+                            final titleKey = item["key"]!;
+                            final internalName = item["name"]!;
+                            final imagePath = item["image"]!;
+
                             return _gridItem(
-                              imagePath: item["image"]!,
-                              title: item["title"]!,
+                              imagePath: imagePath,
+                              // 👇 This is what user sees (translated)
+                              title: titleKey.tr,
+                              // 👇 This is what goes to ProductListScreen / Firestore
+                              internalName: internalName,
                               onTap: () => Get.to(
                                     () => ProductListScreen(
                                   category: "Buy",
-                                  subCategory: item["title"]!,
+                                  subCategory: internalName,
                                 ),
                               ),
                               containerBg: containerBg,
@@ -182,7 +253,8 @@ class _BuyScreenState extends State<BuyScreen> {
 
   Widget _gridItem({
     required String imagePath,
-    required String title,
+    required String title,        // already translated text
+    required String internalName, // kept if you want it later
     required VoidCallback onTap,
     required Color containerBg,
     required Color containerText,
@@ -199,10 +271,14 @@ class _BuyScreenState extends State<BuyScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(imagePath, height: 60.h, color: isDark ? Colors.white : null),
+            Image.asset(
+              imagePath,
+              height: 60.h,
+              color: isDark ? Colors.white : null,
+            ),
             SizedBox(height: 10.h),
             Text(
-              title,
+              title, // 👈 This will now be Arabic when locale is ar_AR
               textAlign: TextAlign.center,
               style: AppStyles.small1.copyWith(
                 color: containerText,

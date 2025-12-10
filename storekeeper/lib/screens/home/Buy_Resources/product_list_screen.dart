@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
 import '../../../core/app_theme.dart';
 import '../../../controllers/Theme_Controller.dart';
 import '../Borrow_Resources/BorrowApplyScreen.dart';
@@ -37,30 +38,36 @@ class _ProductListScreenState extends State<ProductListScreen> {
     return Obx(() {
       final isDark = themeController.isDarkMode.value;
 
-      // ✅ NO category/subcategory filter in Firestore query anymore
-      // We will handle both old + new structures in Dart.
       final query = FirebaseFirestore.instance.collection('products');
 
+      final scaffoldBg = isDark ? Colors.black : null;
+      final topDecoration = isDark
+          ? const BoxDecoration(color: Colors.black)
+          : const BoxDecoration(gradient: AppTheme.background);
+
+      final listBg = isDark ? Colors.grey[900]! : Colors.white;
+      final cardBg = isDark ? Colors.grey[850]! : Colors.white;
+      final mainTextColor = isDark ? Colors.white : Colors.black87;
+      final subTextColor = isDark ? Colors.grey[400]! : Colors.black54;
+      final searchFill = isDark ? Colors.grey[800]! : Colors.white;
+
       return Scaffold(
+        backgroundColor: scaffoldBg,
         body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF6A7FD0), Color(0xFF4A63B6)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
+          decoration: topDecoration,
           child: SafeArea(
             child: Column(
               children: [
                 // ------------------ HEADER ---------------------
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Row(
                     children: [
                       GestureDetector(
                         onTap: () => Get.back(),
-                        child: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                        child:
+                        const Icon(Icons.arrow_back_ios, color: Colors.white),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -79,15 +86,21 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
                 // ------------------ SEARCH ---------------------
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: TextField(
                     controller: _searchCtrl,
-                    onChanged: (v) => setState(() => _searchQuery = v.toLowerCase()),
+                    onChanged: (v) =>
+                        setState(() => _searchQuery = v.toLowerCase()),
                     decoration: InputDecoration(
                       hintText: "Search resources...",
+                      hintStyle: TextStyle(
+                          color:
+                          isDark ? Colors.grey[400] : Colors.grey[600]),
                       filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
+                      fillColor: searchFill,
+                      prefixIcon: Icon(Icons.search,
+                          color: isDark ? Colors.white70 : Colors.blueAccent),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(30),
                         borderSide: BorderSide.none,
@@ -99,9 +112,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 // ------------------ LIST ---------------------
                 Expanded(
                   child: Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.only(
+                    decoration: BoxDecoration(
+                      color: listBg,
+                      borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(40),
                         topRight: Radius.circular(40),
                       ),
@@ -109,80 +122,106 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     child: StreamBuilder<QuerySnapshot>(
                       stream: query.snapshots(),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                              child: CircularProgressIndicator());
                         }
-                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                          return const Center(child: Text("No products found"));
+                        if (!snapshot.hasData ||
+                            snapshot.data!.docs.isEmpty) {
+                          return Center(
+                            child: Text(
+                              "No products found",
+                              style: TextStyle(color: subTextColor),
+                            ),
+                          );
                         }
 
-                        // ✅ Handle both:
-                        // 1) old fields: "category", "subcategory"
-                        // 2) new fields: "categories" (List), "subcategories" (List)
                         final docs = snapshot.data!.docs.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
+                          final data =
+                          doc.data() as Map<String, dynamic>;
 
                           final String? singleCategory =
-                          (data['category'] ?? data['Category']) as String?;
+                          (data['category'] ?? data['Category'])
+                          as String?;
                           final String? singleSubCategory =
                           (data['subcategory'] ?? data['Subcategory'])
                           as String?;
 
                           final List<String> categoryList =
                           (data['categories'] is List)
-                              ? List<String>.from(data['categories'])
+                              ? List<String>.from(
+                              data['categories'])
                               : <String>[];
 
                           final List<String> subCategoryList =
                           (data['subcategories'] is List)
-                              ? List<String>.from(data['subcategories'])
+                              ? List<String>.from(
+                              data['subcategories'])
                               : <String>[];
 
-                          // ✅ Match if either single field OR list contains it
                           final bool matchCategory =
                               singleCategory == widget.category ||
-                                  categoryList.contains(widget.category);
+                                  categoryList
+                                      .contains(widget.category);
 
                           final bool matchSubCategory =
                               singleSubCategory == widget.subCategory ||
-                                  subCategoryList.contains(widget.subCategory);
+                                  subCategoryList
+                                      .contains(widget.subCategory);
 
-                          // ✅ Search filter
-                          final name =
-                          (data['name'] ?? '').toString().toLowerCase();
+                          final name = (data['name'] ?? '')
+                              .toString()
+                              .toLowerCase();
                           final bool matchSearch = _searchQuery.isEmpty ||
                               name.contains(_searchQuery);
 
-                          return matchCategory && matchSubCategory && matchSearch;
+                          return matchCategory &&
+                              matchSubCategory &&
+                              matchSearch;
                         }).toList();
 
                         if (docs.isEmpty) {
-                          return const Center(child: Text("No products found"));
+                          return Center(
+                            child: Text(
+                              "No products found",
+                              style: TextStyle(color: subTextColor),
+                            ),
+                          );
                         }
 
                         return ListView.builder(
                           padding: const EdgeInsets.all(16),
                           itemCount: docs.length,
                           itemBuilder: (context, i) {
-                            final data = docs[i].data() as Map<String, dynamic>;
-                            final name = data['name'] ?? 'Unnamed Product';
+                            final data =
+                            docs[i].data() as Map<String, dynamic>;
+                            final name =
+                                data['name'] ?? 'Unnamed Product';
                             final price = data['price']?.toString() ?? '0';
                             final image = data['image'] ?? '';
 
-                            final isBorrow = widget.category == 'Borrow';
+                            final isBorrow =
+                                widget.category == 'Borrow';
 
                             return Card(
-                              elevation: 3,
+                              color: cardBg,
+                              elevation: isDark ? 1 : 3,
+                              shadowColor: isDark
+                                  ? Colors.black.withOpacity(0.6)
+                                  : Colors.black26,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.all(12),
                                 child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                                   children: [
                                     ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
+                                      borderRadius:
+                                      BorderRadius.circular(10),
                                       child: Image.network(
                                         image,
                                         width: 70,
@@ -200,16 +239,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                         children: [
                                           Text(
                                             name,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,
+                                              color: mainTextColor,
                                             ),
                                           ),
                                           const SizedBox(height: 5),
                                           Text(
                                             "Price: $price OMR",
-                                            style: const TextStyle(
-                                              color: Colors.black54,
+                                            style: TextStyle(
+                                              color: subTextColor,
                                             ),
                                           ),
                                           const SizedBox(height: 8),
@@ -219,30 +259,39 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                             child: ElevatedButton(
                                               onPressed: () {
                                                 if (isBorrow) {
-                                                  Get.to(() => BorrowApplyScreen(
-                                                    productData: data,
-                                                  ));
+                                                  Get.to(
+                                                        () =>
+                                                        BorrowApplyScreen(
+                                                          productData: data,
+                                                        ),
+                                                  );
                                                 } else {
-                                                  Get.to(() => ProductDetailScreen(
-                                                    productData: data,
-                                                  ));
+                                                  Get.to(
+                                                        () =>
+                                                        ProductDetailScreen(
+                                                          productData: data,
+                                                        ),
+                                                  );
                                                 }
                                               },
-                                              style: ElevatedButton.styleFrom(
+                                              style: ElevatedButton
+                                                  .styleFrom(
                                                 backgroundColor:
-                                                const Color(0xFFFF9800),
-                                                shape: RoundedRectangleBorder(
+                                                const Color(
+                                                    0xFFFF9800),
+                                                shape:
+                                                RoundedRectangleBorder(
                                                   borderRadius:
-                                                  BorderRadius.circular(10),
+                                                  BorderRadius
+                                                      .circular(10),
                                                 ),
                                               ),
-                                              child: Text(
-                                                isBorrow
-                                                    ? "Borrow Now"
-                                                    : "Shop Now",
-                                                style: const TextStyle(
+                                              child: const Text(
+                                                "Details",
+                                                style: TextStyle(
                                                   color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
+                                                  fontWeight:
+                                                  FontWeight.bold,
                                                 ),
                                               ),
                                             ),
