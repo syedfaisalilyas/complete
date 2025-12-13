@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -83,6 +84,40 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (picked != null) {
       expiryCtrl.text =
       "${picked.month.toString().padLeft(2, "0")}/${(picked.year % 100).toString().padLeft(2, "0")}";
+    }
+  }
+
+  Future<void> _sendInvoiceEmail({
+    required String orderId,
+    required String invoiceId,
+    required double amount,
+  }) async {
+    try {
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('sendInvoiceEmail');
+
+      await callable.call({
+        "to": user!.email,
+        "orderId": orderId,
+        "invoiceId": invoiceId,
+        "amount": amount,
+      });
+      Get.snackbar(
+        "Payment successful",
+        "Payment successful and email sent",
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      debugPrint("Email error: $e");
+
+      // ❗ Do NOT block payment if email fails
+      Get.snackbar(
+        "Email Failed",
+        "Payment successful but email could not be sent",
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -217,6 +252,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
         "createdAt": FieldValue.serverTimestamp(),
         "items": cartItems.docs.map((e) => e.data()).toList(),
       });
+// 📧 SEND INVOICE EMAIL (SendGrid via Cloud Function)
+      await _sendInvoiceEmail(
+        orderId: orderId,
+        invoiceId: invoiceId,
+        amount: widget.totalAmount,
+      );
 
       // SEND EMAIL RECEIPT
       await _queueEmailReceipt(
