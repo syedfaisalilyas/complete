@@ -92,6 +92,7 @@ flutter:
     - assets/images/signin/signin.png
     - assets/images/storekeeper/s1.png
     - assets/images/order/order.png
+    - assets/images/placeholder.png
   uses-material-design: true
   fonts:
     - family: Co Headline.otf

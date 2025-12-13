@@ -140,6 +140,7 @@ class _BorrowApplyScreenState extends State<BorrowApplyScreen> {
         colorText: Colors.white,
       );
     } catch (e) {
+      print('error is $e');
       Get.snackbar("Error", e.toString(),
           backgroundColor: Colors.red, colorText: Colors.white);
     } finally {
@@ -184,18 +185,33 @@ class _BorrowApplyScreenState extends State<BorrowApplyScreen> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: (p['image'] != null && p['image'].toString().isNotEmpty)
-                          ? Image.network(
-                        p['image'],
+                      child: Image.network(
+                        p['image'] ?? '',
                         width: 90,
                         height: 90,
                         fit: BoxFit.cover,
-                      )
-                          : Container(
-                        width: 90,
-                        height: 90,
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.image_not_supported, size: 40),
+
+                        // ✅ while loading
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            width: 90,
+                            height: 90,
+                            color: Colors.grey.shade200,
+                            alignment: Alignment.center,
+                            child: const CircularProgressIndicator(strokeWidth: 2),
+                          );
+                        },
+
+                        // ✅ if image URL is invalid / 404 / empty
+                        errorBuilder: (_, __, ___) {
+                          return Image.asset(
+                            'assets/images/placeholder.png',
+                            height: 180,
+                            fit: BoxFit.contain,
+                          );
+                        },
+
                       ),
                     ),
                     const SizedBox(width: 12),
