@@ -1,167 +1,137 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 
-class AdminBorrowApprovalScreen extends StatelessWidget {
-  const AdminBorrowApprovalScreen({super.key});
+import 'borrow_constants.dart';
 
-  Future<void> _updateStatus(String id, String status) async {
-    await FirebaseFirestore.instance
-        .collection('borrow_requests')
-        .doc(id)
-        .update({'status': status});
-    Get.snackbar(
-      "Updated",
-      "Borrow request $status successfully",
-      backgroundColor: status == 'Approved' ? Colors.green : Colors.redAccent,
-      colorText: Colors.white,
-      snackPosition: SnackPosition.BOTTOM,
+class AdminBorrowPendingScreen extends StatelessWidget {
+  const AdminBorrowPendingScreen({super.key});
+
+  Future<void> _approve(BuildContext context, DocumentReference ref, String depositText) async {
+    final dep = double.tryParse(depositText);
+    if (dep == null || dep <= 0) {
+      Get.snackbar("Invalid deposit", "Enter a valid security deposit amount.");
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Approve request?"),
+        content: Text("Security deposit will be set to $dep OMR.\nContinue?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("Approve")),
+        ],
+      ),
     );
+
+    if (ok != true) return;
+
+    await ref.update({
+      "securityDeposit": dep,
+      "depositFinalized": true,
+      "status": BorrowStatuses.approved,
+    });
+
+    Get.snackbar("Approved", "Request approved successfully",
+        backgroundColor: Colors.green, colorText: Colors.white);
   }
 
-  String _formatDate(dynamic value) {
-    if (value == null) return "N/A";
-    try {
-      return DateFormat('dd MMM yyyy').format(DateFormat('dd MMM yyyy').parse(value.toString()));
-    } catch (_) {
-      return value.toString();
-    }
+  Future<void> _reject(BuildContext context, DocumentReference ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Reject request?"),
+        content: const Text("User will be notified via status update."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Reject"),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    await ref.update({"status": BorrowStatuses.rejected});
+    Get.snackbar("Rejected", "Request rejected", backgroundColor: Colors.red, colorText: Colors.white);
   }
 
   @override
   Widget build(BuildContext context) {
+    final stream = FirebaseFirestore.instance
+        .collection('borrow_requests')
+        .where('status', isEqualTo: BorrowStatuses.pending)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Borrow Requests"),
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF6A7FD0), Color(0xFF879AF2)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-      ),
+      appBar: AppBar(title: const Text("Pending Borrow Requests")),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('borrow_requests')
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+        stream: stream,
+        builder: (_, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          final docs = snapshot.data!.docs;
-          if (docs.isEmpty) {
-            return const Center(
-                child: Text("No borrow requests yet.",
-                    style:
-                    TextStyle(fontSize: 16, fontWeight: FontWeight.w500)));
-          }
+          final docs = snap.data?.docs ?? [];
+          if (docs.isEmpty) return const Center(child: Text("No pending requests."));
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             itemCount: docs.length,
-            itemBuilder: (context, i) {
-              final data = docs[i].data() as Map<String, dynamic>;
-              final id = docs[i].id;
-
-              final status = data['status'] ?? 'Pending';
-              final color = status == 'Approved'
-                  ? Colors.green
-                  : status == 'Rejected'
-                  ? Colors.redAccent
-                  : Colors.orange;
+            itemBuilder: (_, i) {
+              final doc = docs[i];
+              final d = doc.data() as Map<String, dynamic>;
+              final depCtrl = TextEditingController(text: "5"); // default suggestion
 
               return Card(
-                elevation: 5,
-                shadowColor: color.withOpacity(0.3),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                margin: const EdgeInsets.only(bottom: 14),
+                elevation: 3,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                margin: const EdgeInsets.only(bottom: 12),
                 child: Padding(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(d['itemName'] ?? "", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Text("User: ${d['userEmail'] ?? ""}"),
+                      Text("Borrow: ${d['borrowDate'] ?? "N/A"}"),
+                      Text("Return: ${d['returnDate'] ?? "N/A"}"),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: depCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: "Security Deposit (OMR)",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           Expanded(
-                            child: Text(data['itemName'] ?? '',
-                                style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold)),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: color.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(8),
+                            child: ElevatedButton.icon(
+                              onPressed: () => _approve(context, doc.reference, depCtrl.text),
+                              icon: const Icon(Icons.check_circle_outline),
+                              label: const Text("Approve"),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                             ),
-                            child: Text(status,
-                                style: TextStyle(
-                                    color: color,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _reject(context, doc.reference),
+                              icon: const Icon(Icons.cancel_outlined),
+                              label: const Text("Reject"),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Text("User: ${data['userEmail'] ?? ''}",
-                          style: const TextStyle(color: Colors.black54)),
-                      const SizedBox(height: 4),
-                      Text("Borrow Date: ${_formatDate(data['borrowDate'])}"),
-                      Text("Return Date: ${_formatDate(data['returnDate'])}"),
-                      Text("Deposit: ${data['deposit']} OMR"),
-                      const SizedBox(height: 12),
-                      if (status == 'Pending')
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () => _updateStatus(id, "Approved"),
-                                icon: const Icon(Icons.check_circle_outline),
-                                label: const Text("Approve"),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8)),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () => _updateStatus(id, "Rejected"),
-                                icon: const Icon(Icons.cancel_outlined),
-                                label: const Text("Reject"),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.redAccent,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8)),
-                                ),
-                              ),
-                            ),
-                          ],
-                        )
-                      else
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            status == "Approved"
-                                ? "✅ Approved"
-                                : "❌ Rejected",
-                            style: TextStyle(
-                                color: color,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15),
-                          ),
-                        ),
                     ],
                   ),
                 ),

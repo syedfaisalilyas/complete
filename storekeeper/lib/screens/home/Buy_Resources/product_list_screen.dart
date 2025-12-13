@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fuzzy/fuzzy.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:storekeeper/screens/home/Borrow_Resources/UserBorrowApplyScreen.dart' hide BorrowApplyScreen;
 
 import '../../../core/app_theme.dart';
 import '../../../controllers/Theme_Controller.dart';
@@ -416,7 +417,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                 if (isBorrow) {
                                                   Get.to(
                                                         () =>
-                                                        BorrowApplyScreen(
+                                                            BorrowApplyScreen(
                                                           productData:
                                                           data,
                                                         ),

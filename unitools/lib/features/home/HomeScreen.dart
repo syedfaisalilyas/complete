@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:unitools/features/crudScreens/AdminBorrowPickupScreen.dart';
+import 'package:unitools/features/crudScreens/AdminBorrowReturnScreen.dart';
 import 'package:unitools/features/crudScreens/addNewStoreKeepers.dart';
 import 'package:unitools/features/crudScreens/addResourcesAndTools.dart';
 import 'package:unitools/features/crudScreens/deleteResourcesAndTool.dart';
@@ -47,7 +49,15 @@ class HomeScreen extends StatelessWidget {
     {
       "image": TImages.gridLayoutIcon,
       "text": "Manage Borrow resource \n& tools",
-      "onTap": () => Get.to(() => AdminBorrowApprovalScreen())
+      "onTap": () => Get.to(() => AdminBorrowPendingScreen())
+    }, {
+      "image": TImages.gridLayoutIcon,
+      "text": "Manage Borrow resource \n& tools",
+      "onTap": () => Get.to(() => AdminBorrowCollectedReturnScreen())
+    }, {
+      "image": TImages.gridLayoutIcon,
+      "text": "Manage Borrow resource \n& tools",
+      "onTap": () => Get.to(() => AdminBorrowPaidPickupScreen())
     },
     {
       "image": TImages.gridLayoutIcon,

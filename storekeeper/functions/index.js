@@ -1,27 +1,27 @@
 const functions = require("firebase-functions");
-const stripe = require("stripe")(functions.config().stripe.secret);
+const sgMail = require("@sendgrid/mail");
 
-// ✅ Stripe Payment Intent Function
-exports.createPaymentIntent = functions.https.onRequest(async (req, res) => {
-  try {
-    const {amount, currency} = req.body;
+sgMail.setApiKey(functions.config().sendgrid.key);
 
-    if (!amount || !currency) {
-      return res.status(400).send({error: "Amount and currency are required"});
+exports.sendInvoiceEmail = functions.https.onCall(async (data, context) => {
+    const msg = {
+        to: data.to,
+        from: "universal-tools@app.com",
+        subject: `Your Invoice #${data.invoiceId}`,
+        text: `Thank you! Your order ${data.orderId} has been placed.`,
+        html: `
+            <h2>Invoice: ${data.invoiceId}</h2>
+            <p><strong>Order ID:</strong> ${data.orderId}</p>
+            <p><strong>Total Amount:</strong> ${data.amount} OMR</p>
+            <p>Thank you for shopping with us!</p>
+        `,
+    };
+
+    try {
+        await sgMail.send(msg);
+        return { success: true };
+    } catch (error) {
+        console.error(error);
+        return { success: false, error: error.message };
     }
-
-    // Create Payment Intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount, // Amount in smallest currency unit (e.g. paisa for PKR)
-      currency: currency,
-      payment_method_types: ["card"],
-    });
-
-    res.status(200).send({
-      clientSecret: paymentIntent.client_secret,
-    });
-  } catch (error) {
-    console.error("Payment Error:", error);
-    res.status(500).send({error: error.message});
-  }
 });

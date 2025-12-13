@@ -1,8 +1,8 @@
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import '../../controllers/Theme_Controller.dart';
 import '../../core/app_theme.dart';
 import 'ThankYouScreen.dart';
@@ -27,23 +27,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final TextEditingController cvvCtrl = TextEditingController();
 
   bool isProcessing = false;
+  String generatedOtp = "";
 
   final ThemeController themeController = Get.find<ThemeController>();
 
-  /// ======================
-  /// BACK BUTTON POPUP
-  /// ======================
+  // ===========================
+  // BACK BUTTON CONFIRMATION
+  // ===========================
   Future<bool> _onWillPop() async {
     return await showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          "Cancel Payment?",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-            "Are you sure you want to cancel this payment? Your cart will be cleared."),
+      builder: (_) => AlertDialog(
+        title: const Text("Cancel Payment?"),
+        content: const Text("Are you sure? Cart will be cleared."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -52,23 +48,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
           TextButton(
             onPressed: () async {
               if (user != null) {
-                var cartItems = await FirebaseFirestore.instance
-                    .collection('cart')
+                var cart = await FirebaseFirestore.instance
+                    .collection("cart")
                     .doc(user!.uid)
-                    .collection('items')
+                    .collection("items")
                     .get();
-
-                for (var item in cartItems.docs) {
-                  await item.reference.delete();
+                for (var doc in cart.docs) {
+                  await doc.reference.delete();
                 }
               }
-
-              Navigator.pop(context, true); // Exit PaymentScreen
+              Navigator.pop(context, true);
             },
-            child: const Text(
-              "Cancel Payment",
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text("Cancel Payment",
+                style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -76,89 +68,168 @@ class _PaymentScreenState extends State<PaymentScreen> {
         false;
   }
 
-  /// ======================
-  /// PICK EXPIRY DATE
-  /// ======================
+  // ===========================
+  // PICK EXPIRY DATE
+  // ===========================
   Future<void> _pickExpiryDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: now,
       firstDate: now,
-      lastDate: DateTime(now.year + 15),
+      lastDate: DateTime(now.year + 20),
     );
 
     if (picked != null) {
       expiryCtrl.text =
-      "${picked.month.toString().padLeft(2, '0')}/${(picked.year % 100).toString().padLeft(2, '0')}";
+      "${picked.month.toString().padLeft(2, "0")}/${(picked.year % 100).toString().padLeft(2, "0")}";
     }
   }
 
-  /// ======================
-  /// HANDLE PAYMENT
-  /// ======================
+  // ===========================
+  // GENERATE & SHOW OTP DIALOG
+  // ===========================
+  Future<bool> _showOtpDialog() async {
+    TextEditingController otpController = TextEditingController();
+
+    generatedOtp = (Random().nextInt(900000) + 100000).toString();
+    print("DEBUG OTP: $generatedOtp");
+
+    return await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text("Enter OTP"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("An OTP has been sent to your phone/email."),
+            const SizedBox(height: 15),
+            Text("OTP: $generatedOtp",
+                style: const TextStyle(
+                    fontSize: 18,
+                    letterSpacing: 2,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: otpController,
+              decoration: const InputDecoration(
+                  hintText: "Enter 6-digit OTP"),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              if (otpController.text.trim() == generatedOtp) {
+                Navigator.pop(context, true);
+              } else {
+                Get.snackbar("Invalid OTP", "Please try again.",
+                    colorText: Colors.white,
+                    backgroundColor: Colors.red);
+              }
+            },
+            child: const Text("Verify"),
+          ),
+        ],
+      ),
+    ) ??
+        false;
+  }
+
+  // ===========================
+  // SEND EMAIL RECEIPT (via Firestore queue)
+  // ===========================
+  Future<void> _queueEmailReceipt({
+    required String orderId,
+    required String invoiceId,
+    required double amount,
+  }) async {
+    await FirebaseFirestore.instance.collection("email_queue").add({
+      "to": user!.email,
+      "subject": "Your Payment Receipt - $orderId",
+      "body":
+      "Thank you for your purchase!\n\nOrder ID: $orderId\nInvoice: $invoiceId\nAmount Paid: ${amount.toStringAsFixed(2)} OMR\n\nRegards,\nUni Tools App",
+      "timestamp": FieldValue.serverTimestamp(),
+    });
+  }
+
+  // ===========================
+  // PROCESS PAYMENT
+  // ===========================
   Future<void> _handlePayment() async {
     if (!_formKey.currentState!.validate()) return;
     if (user == null) return;
+
+    // OTP CHECK
+    bool otpVerified = await _showOtpDialog();
+    if (!otpVerified) return;
 
     setState(() => isProcessing = true);
 
     try {
       final cartRef = FirebaseFirestore.instance
-          .collection('cart')
+          .collection("cart")
           .doc(user!.uid)
-          .collection('items');
+          .collection("items");
 
       final cartItems = await cartRef.get();
 
       if (cartItems.docs.isEmpty) {
-        Get.snackbar("Cart Empty", "No items to process.",
-            backgroundColor: Colors.red, colorText: Colors.white);
+        Get.snackbar("Cart Empty", "Add items before paying.");
         return;
       }
 
-      final ordersCollection =
-      FirebaseFirestore.instance.collection('orders');
+      final orders = FirebaseFirestore.instance.collection("orders");
+      final orderDoc = orders.doc();
+      final orderId = orderDoc.id;
 
-      final orderDocRef = ordersCollection.doc(); // Auto ID
-      final orderId = orderDocRef.id;
+      final invoiceId = "INV-${DateTime.now().millisecondsSinceEpoch}";
 
-      // Order Data
       final orderData = {
-        'orderId': orderId,
-        'userId': user!.uid,
-        'totalAmount': widget.totalAmount,
-        'paymentMethod': 'Card',
-        'cardName': nameCtrl.text.trim(),
-        'cardNumber': cardNumberCtrl.text.trim(),
-        'expiry': expiryCtrl.text.trim(),
-        'status': 'Confirmed',
-        'timestamp': FieldValue.serverTimestamp(),
-        'items': cartItems.docs.map((doc) => doc.data()).toList(),
+        "orderId": orderId,
+        "userId": user!.uid,
+        "totalAmount": widget.totalAmount,
+        "cardHolder": nameCtrl.text.trim(),
+        "cardNumber": cardNumberCtrl.text.trim(),
+        "expiry": expiryCtrl.text.trim(),
+        "status": "Paid",
+        "timestamp": FieldValue.serverTimestamp(),
+        "items": cartItems.docs.map((e) => e.data()).toList(),
       };
 
-      await orderDocRef.set(orderData);
+      // SAVE ORDER
+      await orderDoc.set(orderData);
 
-      // Create Invoice
-      final invoiceId = "INV-${DateTime.now().millisecondsSinceEpoch}";
+      // SAVE INVOICE
       await FirebaseFirestore.instance
-          .collection('invoices')
+          .collection("invoices")
           .doc(invoiceId)
           .set({
-        'invoiceId': invoiceId,
-        'orderId': orderId,
-        'userId': user!.uid,
-        'amount': widget.totalAmount,
-        'createdAt': FieldValue.serverTimestamp(),
-        'items': cartItems.docs.map((doc) => doc.data()).toList(),
+        "invoiceId": invoiceId,
+        "orderId": orderId,
+        "amount": widget.totalAmount,
+        "createdAt": FieldValue.serverTimestamp(),
+        "items": cartItems.docs.map((e) => e.data()).toList(),
       });
 
-      // Clear Cart
+      // SEND EMAIL RECEIPT
+      await _queueEmailReceipt(
+        orderId: orderId,
+        invoiceId: invoiceId,
+        amount: widget.totalAmount,
+      );
+
+      // CLEAR CART
       for (var doc in cartItems.docs) {
         await doc.reference.delete();
       }
 
-      // Go to Thank You Screen
       Get.off(() => ThankYouScreen(
         orderId: orderId,
         invoiceId: invoiceId,
@@ -172,9 +243,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  /// ======================
-  /// UI
-  /// ======================
+  // ===========================
+  // UI
+  // ===========================
   @override
   Widget build(BuildContext context) {
     return Obx(() {
@@ -183,16 +254,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final scaffoldBg = isDark ? Colors.black : const Color(0xFF6A7FD0);
       final cardBg = isDark ? Colors.grey[900]! : Colors.white;
       final textColor = isDark ? Colors.white : Colors.black;
-      final subTextColor =
-      isDark ? Colors.grey[400]! : Colors.grey.shade700;
+      final subColor = isDark ? Colors.grey[400]! : Colors.grey[700]!;
 
-      InputBorder _inputBorder(Color color) => OutlineInputBorder(
+      InputBorder border(Color c) => OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: color),
+        borderSide: BorderSide(color: c),
       );
 
       return WillPopScope(
-        onWillPop: _onWillPop, // <<< IMPORTANT
+        onWillPop: _onWillPop,
         child: Scaffold(
           backgroundColor: scaffoldBg,
           body: SafeArea(
@@ -202,22 +272,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      // ===== Back Button + Title =====
+                      // HEADER ROW
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.arrow_back,
-                                color: Colors.white),
-                            onPressed: () => _onWillPop(),
+                            icon:
+                            const Icon(Icons.arrow_back, color: Colors.white),
+                            onPressed: _onWillPop,
                           ),
                           const Spacer(),
                           const Text(
-                            "Uni Tools App",
+                            "Uni Tools",
                             style: TextStyle(
-                              fontSize: 22,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
+                                fontSize: 22,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold),
                           ),
                           const Spacer(),
                           const SizedBox(width: 48),
@@ -226,91 +295,60 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
                       const SizedBox(height: 20),
 
-                      Image.asset(
-                        "assets/images/payment/payment1.png",
-                        height: 120,
-                        color: isDark ? Colors.white : null,
-                      ),
+                      Image.asset("assets/images/payment/payment1.png",
+                          height: 120, color: isDark ? Colors.white : null),
 
                       const SizedBox(height: 20),
 
-                      // ===== Card Container =====
                       Container(
-                        width: double.infinity,
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
                           color: cardBg,
                           borderRadius: BorderRadius.circular(25),
-                          boxShadow: [
-                            if (!isDark)
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.08),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                          ],
                         ),
                         child: Form(
                           key: _formKey,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                "Payment",
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: textColor,
-                                ),
-                              ),
-
+                              Text("Payment",
+                                  style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: textColor)),
                               const SizedBox(height: 20),
 
+                              // CARD NUMBER
                               TextFormField(
                                 controller: cardNumberCtrl,
-                                keyboardType: TextInputType.number,
                                 maxLength: 16,
-                                style: TextStyle(color: textColor),
+                                keyboardType: TextInputType.number,
                                 decoration: InputDecoration(
                                   labelText: "Card Number",
                                   counterText: "",
-                                  labelStyle:
-                                  TextStyle(color: subTextColor),
-                                  hintStyle:
-                                  TextStyle(color: subTextColor),
-                                  enabledBorder:
-                                  _inputBorder(subTextColor),
-                                  focusedBorder:
-                                  _inputBorder(Colors.orange),
+                                  labelStyle: TextStyle(color: subColor),
+                                  enabledBorder: border(subColor),
+                                  focusedBorder: border(Colors.orange),
                                 ),
-                                validator: (v) {
-                                  if (v == null || v.length != 16) {
-                                    return "Enter valid 16-digit card number";
-                                  }
-                                  return null;
-                                },
+                                validator: (v) =>
+                                v!.length == 16 ? null : "Enter valid card",
+                                style: TextStyle(color: textColor),
                               ),
 
                               const SizedBox(height: 10),
 
+                              // CARD HOLDER NAME
                               TextFormField(
                                 controller: nameCtrl,
-                                style: TextStyle(color: textColor),
                                 decoration: InputDecoration(
                                   labelText: "Card Holder Name",
-                                  labelStyle:
-                                  TextStyle(color: subTextColor),
-                                  hintStyle:
-                                  TextStyle(color: subTextColor),
-                                  enabledBorder:
-                                  _inputBorder(subTextColor),
-                                  focusedBorder:
-                                  _inputBorder(Colors.orange),
+                                  labelStyle: TextStyle(color: subColor),
+                                  enabledBorder: border(subColor),
+                                  focusedBorder: border(Colors.orange),
                                 ),
                                 validator: (v) =>
-                                v == null || v.trim().isEmpty
-                                    ? "Enter cardholder name"
-                                    : null,
+                                v!.trim().isEmpty ? "Enter name" : null,
+                                style: TextStyle(color: textColor),
                               ),
 
                               const SizedBox(height: 10),
@@ -322,49 +360,35 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                       controller: expiryCtrl,
                                       readOnly: true,
                                       onTap: _pickExpiryDate,
-                                      style: TextStyle(color: textColor),
                                       decoration: InputDecoration(
-                                        labelText: "Expiry Date",
+                                        labelText: "Expiry",
                                         hintText: "MM/YY",
-                                        labelStyle: TextStyle(
-                                            color: subTextColor),
-                                        hintStyle: TextStyle(
-                                            color: subTextColor),
-                                        enabledBorder:
-                                        _inputBorder(subTextColor),
-                                        focusedBorder:
-                                        _inputBorder(Colors.orange),
+                                        labelStyle: TextStyle(color: subColor),
+                                        enabledBorder: border(subColor),
+                                        focusedBorder: border(Colors.orange),
                                       ),
                                       validator: (v) =>
-                                      v == null || v.isEmpty
-                                          ? "Select expiry date"
-                                          : null,
+                                      v!.isEmpty ? "Select expiry" : null,
+                                      style: TextStyle(color: textColor),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: TextFormField(
                                       controller: cvvCtrl,
+                                      maxLength: 3,
                                       obscureText: true,
                                       keyboardType: TextInputType.number,
-                                      maxLength: 3,
-                                      style: TextStyle(color: textColor),
                                       decoration: InputDecoration(
                                         labelText: "CVV",
                                         counterText: "",
-                                        labelStyle: TextStyle(
-                                            color: subTextColor),
-                                        hintStyle: TextStyle(
-                                            color: subTextColor),
-                                        enabledBorder:
-                                        _inputBorder(subTextColor),
-                                        focusedBorder:
-                                        _inputBorder(Colors.orange),
+                                        labelStyle: TextStyle(color: subColor),
+                                        enabledBorder: border(subColor),
+                                        focusedBorder: border(Colors.orange),
                                       ),
                                       validator: (v) =>
-                                      v == null || v.length != 3
-                                          ? "Enter 3-digit CVV"
-                                          : null,
+                                      v!.length == 3 ? null : "Invalid CVV",
+                                      style: TextStyle(color: textColor),
                                     ),
                                   ),
                                 ],
@@ -375,10 +399,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               Text(
                                 "Total: ${widget.totalAmount.toStringAsFixed(2)} OMR",
                                 style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                  color: textColor,
-                                ),
+                                    color: textColor,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold),
                               ),
 
                               const SizedBox(height: 20),
@@ -390,24 +413,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                   onPressed:
                                   isProcessing ? null : _handlePayment,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.orange,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                      BorderRadius.circular(10),
-                                    ),
-                                  ),
+                                      backgroundColor: Colors.orange),
                                   child: isProcessing
                                       ? const CircularProgressIndicator(
-                                    color: Colors.white,
-                                  )
-                                      : const Text(
-                                    "Pay Now",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
+                                      color: Colors.white)
+                                      : const Text("Pay Now",
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold)),
                                 ),
                               )
                             ],
@@ -418,14 +432,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   ),
                 ),
 
-                // ===== Loading Overlay =====
                 if (isProcessing)
                   Container(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black54,
                     child: const Center(
-                      child:
-                      CircularProgressIndicator(color: Colors.white),
-                    ),
+                        child: CircularProgressIndicator(color: Colors.white)),
                   ),
               ],
             ),
